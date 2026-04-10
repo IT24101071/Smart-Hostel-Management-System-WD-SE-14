@@ -1,16 +1,22 @@
+import { useRouter } from 'expo-router';
 import {
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StatusBar,
   StyleSheet,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import LoginForm from '../components/login/LoginForm';
-import LoginHeader from '../components/login/LoginHeader';
+import { Ionicons } from '@expo/vector-icons';
+import SignupHeader from '../components/signup/SignupHeader';
+import SignupForm from '../components/signup/SignupForm';
+import { COLORS } from '../constants/colors';
 
-export default function LoginScreen() {
+export default function SignupScreen() {
+  const router = useRouter();
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#C8DAEA" />
@@ -24,8 +30,14 @@ export default function LoginScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.card}>
-            <LoginHeader />
-            <LoginForm />
+            {/* Back to login */}
+            <Pressable style={styles.backRow} onPress={() => router.back()}>
+              <Ionicons name="arrow-back" size={18} color={COLORS.primary} />
+              <View />
+            </Pressable>
+
+            <SignupHeader />
+            <SignupForm />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -56,5 +68,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 16,
     elevation: 6,
+  },
+  backRow: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
   },
 });
