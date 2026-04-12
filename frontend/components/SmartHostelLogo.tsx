@@ -5,8 +5,7 @@ interface SmartHostelLogoProps {
   width?: number;
   height?: number;
 }
-
-//test
+ //test
 
 export default function SmartHostelLogo({ width = 160, height = 30 }: SmartHostelLogoProps) {
   return (
