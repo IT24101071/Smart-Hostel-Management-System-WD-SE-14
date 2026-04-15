@@ -13,23 +13,19 @@ import {
   View,
 } from 'react-native';
 import { COLORS } from '../../constants/colors';
-import { AvailabilityStatus, RoomFormValues, RoomType } from '../../types/room';
+import { AVAILABILITY_STATUSES, ROOM_TYPES } from '../../types/room';
 
 const MAX_IMAGES = 5;
 
-const ROOM_TYPES: RoomType[] = ['Single', 'Double', 'Triple'];
-const AVAILABILITY_OPTIONS: AvailabilityStatus[] = ['Available', 'Full', 'Maintenance'];
+const AVAILABILITY_OPTIONS = AVAILABILITY_STATUSES;
 
-const STATUS_CONFIG: Record<
-  AvailabilityStatus,
-  { icon: keyof typeof Ionicons.glyphMap; color: string; bg: string }
-> = {
+const STATUS_CONFIG = {
   Available: { icon: 'checkmark-circle-outline', color: COLORS.available, bg: COLORS.availableBg },
   Full: { icon: 'people-outline', color: COLORS.full, bg: COLORS.fullBg },
   Maintenance: { icon: 'construct-outline', color: COLORS.maintenance, bg: COLORS.maintenanceBg },
 };
 
-const DEFAULT_VALUES: RoomFormValues = {
+const DEFAULT_VALUES = {
   roomNumber: '',
   roomType: 'Single',
   pricePerMonth: '',
@@ -39,32 +35,24 @@ const DEFAULT_VALUES: RoomFormValues = {
   imageUris: [],
 };
 
-type RoomFormProps = {
-  initialValues?: Partial<RoomFormValues>;
-  submitLabel: string;
-  submitting?: boolean;
-  onCancel: () => void;
-  onSubmit: (values: RoomFormValues) => void;
-};
-
 export default function RoomForm({
   initialValues,
   submitLabel,
   submitting = false,
   onCancel,
   onSubmit,
-}: RoomFormProps) {
+}) {
   const seed = { ...DEFAULT_VALUES, ...initialValues };
 
   const [roomNumber, setRoomNumber] = useState(seed.roomNumber);
-  const [roomType, setRoomType] = useState<RoomType>(seed.roomType);
+  const [roomType, setRoomType] = useState(seed.roomType);
   const [pricePerMonth, setPricePerMonth] = useState(seed.pricePerMonth);
   const [capacity, setCapacity] = useState(seed.capacity);
   const [description, setDescription] = useState(seed.description);
-  const [availabilityStatus, setAvailabilityStatus] = useState<AvailabilityStatus>(seed.availabilityStatus);
-  const [imageUris, setImageUris] = useState<string[]>(seed.imageUris ?? []);
+  const [availabilityStatus, setAvailabilityStatus] = useState(seed.availabilityStatus);
+  const [imageUris, setImageUris] = useState(seed.imageUris ?? []);
 
-  async function pickImage(source: 'library' | 'camera') {
+  async function pickImage(source) {
     // On web: permissions are not required and allowsEditing is unsupported
     if (Platform.OS !== 'web') {
       const permResult =
@@ -83,7 +71,7 @@ export default function RoomForm({
       }
     }
 
-    const options: ImagePicker.ImagePickerOptions = {
+    const options = {
       mediaTypes: 'images',
       // allowsEditing crashes the web file-picker flow; skip it on web
       allowsEditing: Platform.OS !== 'web',
@@ -115,7 +103,7 @@ export default function RoomForm({
     ]);
   }
 
-  function removeImage(index: number) {
+  function removeImage(index) {
     setImageUris((prev) => prev.filter((_, i) => i !== index));
   }
 
@@ -334,10 +322,6 @@ function SectionCard({
   title,
   icon,
   children,
-}: {
-  title: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  children: React.ReactNode;
 }) {
   return (
     <View style={styles.sectionCard}>

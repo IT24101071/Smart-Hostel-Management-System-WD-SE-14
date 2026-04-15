@@ -1,4 +1,4 @@
-import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
+import axios from "axios";
 import { router } from "expo-router";
 import { API_BASE_URL, API_TIMEOUT_MS } from "../constants/api";
 import { storage } from "./storage";
@@ -12,7 +12,7 @@ const apiClient = axios.create({
 });
 
 apiClient.interceptors.request.use(
-  async (config: InternalAxiosRequestConfig) => {
+  async (config) => {
     if (!config.headers.Authorization) {
       const token = await storage.getToken();
       if (token) {
@@ -24,7 +24,7 @@ apiClient.interceptors.request.use(
     );
     return config;
   },
-  (error: AxiosError) => {
+  (error) => {
     console.error("[API] Request setup error:", error.message);
     return Promise.reject(error);
   },
@@ -35,7 +35,7 @@ apiClient.interceptors.response.use(
     console.log(`[API] ${response.status} ← ${response.config.url}`);
     return response;
   },
-  async (error: AxiosError) => {
+  async (error) => {
     console.error(
       `[API] Error ← ${error.config?.url}`,
       `| status: ${error.response?.status ?? "no response"}`,

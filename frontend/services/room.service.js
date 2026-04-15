@@ -1,38 +1,12 @@
 import { AxiosError } from "axios";
 import apiClient from "../lib/axios";
-import { Room, RoomFormValues } from "../types/room";
-
-type ApiRoom = Omit<Room, "id"> & { _id: string };
-
-function mapRoom(r: ApiRoom): Room {
+function mapRoom(r) {
   const { _id, ...rest } = r;
   return { ...rest, id: _id };
 }
 
-export type GetRoomsParams = {
-  roomType?: string;
-  availabilityStatus?: string;
-  page?: number;
-  limit?: number;
-};
-
-export type GetRoomsResponse = {
-  rooms: Room[];
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-  };
-};
-
-export async function getRooms(
-  params: GetRoomsParams = { limit: 100 },
-): Promise<GetRoomsResponse> {
-  const { data } = await apiClient.get<{
-    data: ApiRoom[];
-    pagination: GetRoomsResponse["pagination"];
-  }>("/rooms", { params });
+export async function getRooms(params = { limit: 100 }) {
+  const { data } = await apiClient.get("/rooms", { params });
 
   return {
     rooms: data.data.map(mapRoom),
@@ -40,12 +14,12 @@ export async function getRooms(
   };
 }
 
-export async function getRoomById(id: string): Promise<Room> {
-  const { data } = await apiClient.get<ApiRoom>(`/rooms/${id}`);
+export async function getRoomById(id) {
+  const { data } = await apiClient.get(`/rooms/${id}`);
   return mapRoom(data);
 }
 
-export async function createRoom(values: RoomFormValues): Promise<Room> {
+export async function createRoom(values) {
   if (values.imageUris?.length) {
     const form = buildFormData(
       {
@@ -57,13 +31,13 @@ export async function createRoom(values: RoomFormValues): Promise<Room> {
       },
       values.imageUris,
     );
-    const { data } = await apiClient.post<ApiRoom>("/rooms", form, {
+    const { data } = await apiClient.post("/rooms", form, {
       headers: { "Content-Type": "multipart/form-data" },
     });
     return mapRoom(data);
   }
 
-  const { data } = await apiClient.post<ApiRoom>("/rooms", {
+  const { data } = await apiClient.post("/rooms", {
     roomNumber: values.roomNumber.trim(),
     roomType: values.roomType,
     pricePerMonth: Number(values.pricePerMonth),
@@ -74,9 +48,9 @@ export async function createRoom(values: RoomFormValues): Promise<Room> {
 }
 
 export async function updateRoom(
-  id: string,
-  values: RoomFormValues,
-): Promise<Room> {
+  id,
+  values,
+) {
   if (values.imageUris?.length) {
     const form = buildFormData(
       {
@@ -89,13 +63,13 @@ export async function updateRoom(
       },
       values.imageUris,
     );
-    const { data } = await apiClient.put<ApiRoom>(`/rooms/${id}`, form, {
+    const { data } = await apiClient.put(`/rooms/${id}`, form, {
       headers: { "Content-Type": "multipart/form-data" },
     });
     return mapRoom(data);
   }
 
-  const { data } = await apiClient.put<ApiRoom>(`/rooms/${id}`, {
+  const { data } = await apiClient.put(`/rooms/${id}`, {
     roomType: values.roomType,
     pricePerMonth: Number(values.pricePerMonth),
     capacity: values.capacity,
@@ -105,14 +79,11 @@ export async function updateRoom(
   return mapRoom(data);
 }
 
-export async function deleteRoom(id: string): Promise<void> {
+export async function deleteRoom(id) {
   await apiClient.delete(`/rooms/${id}`);
 }
 
-function buildFormData(
-  fields: Record<string, string>,
-  imageUris: string[],
-): FormData {
+function buildFormData(fields, imageUris) {
   const form = new FormData();
 
   for (const [key, value] of Object.entries(fields)) {
@@ -132,15 +103,15 @@ function buildFormData(
       uri,
       name: filename,
       type: mimeType,
-    } as unknown as Blob);
+    });
   });
 
   return form;
 }
 
-export function getRoomErrorMessage(error: unknown): string {
+export function getRoomErrorMessage(error) {
   if (error instanceof AxiosError) {
-    const serverMessage = error.response?.data?.message as string | undefined;
+    const serverMessage = error.response?.data?.message;
     if (serverMessage) return serverMessage;
     if (!error.response) return "Unable to connect. Please check your network.";
     if (error.code === "ECONNABORTED")

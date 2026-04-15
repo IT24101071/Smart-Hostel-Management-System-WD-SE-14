@@ -11,19 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants/colors';
 
-type DashboardItem = {
-  id: string;
-  title: string;
-  description: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  iconColor: string;
-  iconBg: string;
-  route: string | null;
-  active: boolean;
-  badge?: string;
-};
-
-const DASHBOARD_ITEMS: DashboardItem[] = [
+const DASHBOARD_ITEMS = [
   {
     id: 'rooms',
     title: 'Room Management',
@@ -39,9 +27,9 @@ const DASHBOARD_ITEMS: DashboardItem[] = [
 export default function AdminDashboard() {
   const router = useRouter();
 
-  function handleCardPress(item: DashboardItem) {
+  function handleCardPress(item) {
     if (item.active && item.route) {
-      router.push(item.route as never);
+      router.push(item.route);
     }
   }
 

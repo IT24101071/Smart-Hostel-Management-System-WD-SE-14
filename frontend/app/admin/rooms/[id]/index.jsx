@@ -14,8 +14,6 @@ import {
   Text,
   View,
 } from 'react-native';
-
-const SCREEN_WIDTH = Dimensions.get('window').width;
 import { SafeAreaView } from 'react-native-safe-area-context';
 import RoomDetailRow from '../../../../components/rooms/RoomDetailRow';
 import ScreenHeader, { HeaderIconButton } from '../../../../components/rooms/ScreenHeader';
@@ -25,23 +23,24 @@ import {
   getRoomById,
   getRoomErrorMessage,
 } from '../../../../services/room.service';
-import { Room } from '../../../../types/room';
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
 
 export default function RoomDetailScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id } = useLocalSearchParams();
 
-  const [room, setRoom] = useState<Room | null>(null);
+  const [room, setRoom] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [lightboxUri, setLightboxUri] = useState<string | null>(null);
+  const [lightboxUri, setLightboxUri] = useState(null);
 
   useEffect(() => {
     async function fetch() {
       setLoading(true);
       setError('');
       try {
-        const data = await getRoomById(id!);
+        const data = await getRoomById(id);
         setRoom(data);
       } catch (err) {
         setError(getRoomErrorMessage(err));
@@ -122,7 +121,7 @@ export default function RoomDetailScreen() {
         rightElement={
           <HeaderIconButton
             icon="pencil-outline"
-            onPress={() => router.push(`/admin/rooms/${id}/edit` as never)}
+            onPress={() => router.push(`/admin/rooms/${id}/edit`)}
           />
         }
       />
@@ -165,7 +164,7 @@ export default function RoomDetailScreen() {
               style={[
                 styles.progressBarFill,
                 {
-                  width: `${Math.min(occupancyPercent, 100)}%` as `${number}%`,
+                  width: `${Math.min(occupancyPercent, 100)}%`,
                   backgroundColor:
                     room.availabilityStatus === 'Full'
                       ? COLORS.full
@@ -272,7 +271,7 @@ export default function RoomDetailScreen() {
         <View style={styles.actionButtons}>
           <Pressable
             style={({ pressed }) => [styles.editButton, pressed && { opacity: 0.85 }]}
-            onPress={() => router.push(`/admin/rooms/${id}/edit` as never)}
+            onPress={() => router.push(`/admin/rooms/${id}/edit`)}
           >
             <Ionicons name="pencil-outline" size={18} color={COLORS.white} />
             <Text style={styles.editButtonText}>Edit Room</Text>

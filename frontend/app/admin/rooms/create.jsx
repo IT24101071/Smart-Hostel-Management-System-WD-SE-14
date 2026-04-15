@@ -16,14 +16,13 @@ import RoomForm from '../../../components/rooms/RoomForm';
 import ScreenHeader from '../../../components/rooms/ScreenHeader';
 import { COLORS } from '../../../constants/colors';
 import { createRoom, getRoomErrorMessage } from '../../../services/room.service';
-import { RoomFormValues } from '../../../types/room';
 
 export default function CreateRoomScreen() {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [apiError, setApiError] = useState('');
 
-  async function handleSubmit(values: RoomFormValues) {
+  async function handleSubmit(values) {
     setApiError('');
     setSubmitting(true);
     try {

@@ -22,9 +22,8 @@ import {
   getRoomErrorMessage,
   updateRoom,
 } from '../../../../services/room.service';
-import { Room, RoomFormValues } from '../../../../types/room';
 
-function roomToFormValues(room: Room): RoomFormValues {
+function roomToFormValues(room) {
   return {
     roomNumber: room.roomNumber,
     roomType: room.roomType,
@@ -38,9 +37,9 @@ function roomToFormValues(room: Room): RoomFormValues {
 
 export default function EditRoomScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id } = useLocalSearchParams();
 
-  const [room, setRoom] = useState<Room | null>(null);
+  const [room, setRoom] = useState(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -51,7 +50,7 @@ export default function EditRoomScreen() {
       setLoading(true);
       setFetchError('');
       try {
-        const data = await getRoomById(id!);
+        const data = await getRoomById(id);
         setRoom(data);
       } catch (err) {
         setFetchError(getRoomErrorMessage(err));
@@ -62,11 +61,11 @@ export default function EditRoomScreen() {
     if (id) fetch();
   }, [id]);
 
-  async function handleSubmit(values: RoomFormValues) {
+  async function handleSubmit(values) {
     setApiError('');
     setSubmitting(true);
     try {
-      const updated = await updateRoom(id!, values);
+      const updated = await updateRoom(id, values);
       Alert.alert('Success', `Room ${updated.roomNumber} has been updated successfully.`, [
         { text: 'OK', onPress: () => router.back() },
       ]);

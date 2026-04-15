@@ -40,14 +40,9 @@ export const COLORS = {
 
   rose: "#E11D48",
   roseBg: "#FFF1F2",
-} as const;
+};
 
-export type StatusType = "Available" | "Full" | "Maintenance";
-
-export const STATUS_COLORS: Record<
-  StatusType,
-  { text: string; bg: string; border: string }
-> = {
+export const STATUS_COLORS = {
   Available: {
     text: COLORS.available,
     bg: COLORS.availableBg,
