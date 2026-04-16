@@ -13,6 +13,21 @@ const apiClient = axios.create({
 
 apiClient.interceptors.request.use(
   async (config) => {
+    const isFormData =
+      typeof FormData !== "undefined" && config.data instanceof FormData;
+    if (isFormData && config.headers?.delete) {
+      config.headers.delete("Content-Type");
+    } else if (isFormData) {
+      delete config.headers["Content-Type"];
+    }
+    if (isFormData) {
+      const minMs = 120000;
+      config.timeout = Math.max(config.timeout ?? 0, minMs);
+      console.log(
+        "[API] FormData detected - letting axios set multipart boundary",
+      );
+    }
+
     if (!config.headers.Authorization) {
       const token = await storage.getToken();
       if (token) {
@@ -21,6 +36,7 @@ apiClient.interceptors.request.use(
     }
     console.log(
       `[API] ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`,
+      config.data instanceof FormData ? "(FormData)" : "",
     );
     return config;
   },

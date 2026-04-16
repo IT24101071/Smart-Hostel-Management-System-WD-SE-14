@@ -1,11 +1,30 @@
 import multer from "multer";
 
-const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const ALLOWED_MIMES = ["image/jpeg", "image/png", "image/webp"];
+
+const EXT_TO_MIME = {
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+  ".webp": "image/webp",
+};
 
 const storage = multer.memoryStorage();
 
 const fileFilter = (req, file, cb) => {
-  if (ALLOWED_IMAGE_TYPES.includes(file.mimetype)) {
+  let mime = (file.mimetype || "").toLowerCase().trim();
+  if (mime === "image/jpg") mime = "image/jpeg";
+
+  if (ALLOWED_MIMES.includes(mime)) {
+    return cb(null, true);
+  }
+
+  // Browsers often send application/octet-stream or empty mimetype for picked files
+  const name = (file.originalname || "").toLowerCase();
+  const dot = name.lastIndexOf(".");
+  const ext = dot >= 0 ? name.slice(dot) : "";
+  if (ext && EXT_TO_MIME[ext]) {
+    file.mimetype = EXT_TO_MIME[ext];
     return cb(null, true);
   }
 

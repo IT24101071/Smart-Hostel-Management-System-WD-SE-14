@@ -1,36 +1,41 @@
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Pressable,
   RefreshControl,
   ScrollView,
-  StatusBar,
   StyleSheet,
   Text,
   View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import ScreenHeader, { HeaderIconButton } from '../../../components/rooms/ScreenHeader';
-import RoomCard from '../../../components/rooms/RoomCard';
-import RoomFilterTabs from '../../../components/rooms/RoomFilterTabs';
-import RoomStatsBar from '../../../components/rooms/RoomStatsBar';
-import { COLORS } from '../../../constants/colors';
-import { deleteRoom, getRoomErrorMessage, getRooms } from '../../../services/room.service';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import AdminSubHeader, {
+  AdminSubHeaderIconButton,
+} from "../../../components/admin/AdminSubHeader";
+import RoomCard from "../../../components/rooms/RoomCard";
+import RoomFilterTabs from "../../../components/rooms/RoomFilterTabs";
+import RoomStatsBar from "../../../components/rooms/RoomStatsBar";
+import { COLORS } from "../../../constants/colors";
+import {
+  deleteRoom,
+  getRoomErrorMessage,
+  getRooms,
+} from "../../../services/room.service";
 
 export default function RoomsScreen() {
   const router = useRouter();
-  const [activeFilter, setActiveFilter] = useState('All');
+  const [activeFilter, setActiveFilter] = useState("All");
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   const fetchRooms = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
-    setError('');
+    setError("");
     try {
       const { rooms: fetched } = await getRooms({ limit: 100 });
       setRooms(fetched);
@@ -52,45 +57,45 @@ export default function RoomsScreen() {
   }
 
   const filteredRooms =
-    activeFilter === 'All'
+    activeFilter === "All"
       ? rooms
       : rooms.filter((r) => r.availabilityStatus === activeFilter);
 
   function handleDelete(room) {
     Alert.alert(
-      'Delete Room',
+      "Delete Room",
       `Are you sure you want to delete Room ${room.roomNumber}? This action cannot be undone.`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: "Cancel", style: "cancel" },
         {
-          text: 'Delete',
-          style: 'destructive',
+          text: "Delete",
+          style: "destructive",
           onPress: async () => {
             try {
               await deleteRoom(room.id);
               setRooms((prev) => prev.filter((r) => r.id !== room.id));
             } catch (err) {
-              Alert.alert('Error', getRoomErrorMessage(err));
+              Alert.alert("Error", getRoomErrorMessage(err));
             }
           },
         },
-      ]
+      ],
     );
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
-
-      <ScreenHeader
+    <SafeAreaView style={styles.safeArea} edges={["bottom"]}>
+      <AdminSubHeader
         title="Room Management"
         onBack={() => router.back()}
         rightElement={
-          <HeaderIconButton icon="add" onPress={() => router.push('/admin/rooms/create')} />
+          <AdminSubHeaderIconButton
+            icon="add"
+            onPress={() => router.push("/admin/rooms/create")}
+          />
         }
       />
 
-      {/* Stats always shows the full unfiltered count */}
       <RoomStatsBar rooms={rooms} />
       <RoomFilterTabs activeFilter={activeFilter} onChange={setActiveFilter} />
 
@@ -123,7 +128,10 @@ export default function RoomsScreen() {
           }
         >
           {filteredRooms.length === 0 ? (
-            <EmptyState filter={activeFilter} onAdd={() => router.push('/admin/rooms/create')} />
+            <EmptyState
+              filter={activeFilter}
+              onAdd={() => router.push("/admin/rooms/create")}
+            />
           ) : (
             filteredRooms.map((room) => (
               <RoomCard
@@ -138,7 +146,10 @@ export default function RoomsScreen() {
         </ScrollView>
       )}
 
-      <Pressable style={styles.fab} onPress={() => router.push('/admin/rooms/create')}>
+      <Pressable
+        style={styles.fab}
+        onPress={() => router.push("/admin/rooms/create")}
+      >
         <Ionicons name="add" size={26} color={COLORS.white} />
       </Pressable>
     </SafeAreaView>
@@ -151,11 +162,11 @@ function EmptyState({ filter, onAdd }) {
       <Ionicons name="bed-outline" size={56} color="#D1D5DB" />
       <Text style={styles.emptyTitle}>No rooms found</Text>
       <Text style={styles.emptySubtitle}>
-        {filter === 'All'
-          ? 'Add your first room to get started.'
+        {filter === "All"
+          ? "Add your first room to get started."
           : `No rooms with status "${filter}".`}
       </Text>
-      {filter === 'All' && (
+      {filter === "All" && (
         <Pressable style={styles.emptyAddButton} onPress={onAdd}>
           <Ionicons name="add" size={16} color={COLORS.white} />
           <Text style={styles.emptyAddText}>Add Room</Text>
@@ -176,36 +187,35 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
   },
 
-  // Loading / error states
   centeredBox: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     gap: 10,
     paddingHorizontal: 32,
   },
   loadingText: {
-    fontFamily: 'PublicSans_400Regular',
+    fontFamily: "PublicSans_400Regular",
     fontSize: 14,
     color: COLORS.textMuted,
     marginTop: 4,
   },
   errorTitle: {
-    fontFamily: 'PublicSans_600SemiBold',
+    fontFamily: "PublicSans_600SemiBold",
     fontSize: 16,
     color: COLORS.textSecondary,
     marginTop: 8,
   },
   errorSubtitle: {
-    fontFamily: 'PublicSans_400Regular',
+    fontFamily: "PublicSans_400Regular",
     fontSize: 13,
     color: COLORS.textMuted,
-    textAlign: 'center',
+    textAlign: "center",
     lineHeight: 20,
   },
   retryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
     backgroundColor: COLORS.primary,
     borderRadius: 10,
@@ -214,34 +224,33 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   retryText: {
-    fontFamily: 'PublicSans_600SemiBold',
+    fontFamily: "PublicSans_600SemiBold",
     fontSize: 14,
     color: COLORS.white,
   },
 
-  // Empty state
   emptyState: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingVertical: 64,
     gap: 8,
   },
   emptyTitle: {
-    fontFamily: 'PublicSans_600SemiBold',
+    fontFamily: "PublicSans_600SemiBold",
     fontSize: 17,
     color: COLORS.textSecondary,
     marginTop: 8,
   },
   emptySubtitle: {
-    fontFamily: 'PublicSans_400Regular',
+    fontFamily: "PublicSans_400Regular",
     fontSize: 13,
     color: COLORS.textMuted,
-    textAlign: 'center',
+    textAlign: "center",
     paddingHorizontal: 40,
     lineHeight: 20,
   },
   emptyAddButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
     backgroundColor: COLORS.primary,
     borderRadius: 10,
@@ -250,22 +259,21 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   emptyAddText: {
-    fontFamily: 'PublicSans_600SemiBold',
+    fontFamily: "PublicSans_600SemiBold",
     fontSize: 14,
     color: COLORS.white,
   },
 
-  // FAB
   fab: {
-    position: 'absolute',
+    position: "absolute",
     right: 20,
     bottom: 24,
     width: 56,
     height: 56,
     borderRadius: 28,
     backgroundColor: COLORS.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
