@@ -10,9 +10,9 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import SignupHeader from "../components/signup/SignupHeader";
-import SignupForm from "../components/signup/SignupForm";
-import { COLORS } from "../constants/colors";
+import SignupHeader from "../../components/signup/SignupHeader";
+import SignupForm from "../../components/signup/SignupForm";
+import { COLORS } from "../../constants/colors";
 
 export default function SignupScreen() {
   const router = useRouter();
