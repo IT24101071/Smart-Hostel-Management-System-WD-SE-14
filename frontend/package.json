@@ -16,12 +16,8 @@
     "@react-navigation/bottom-tabs": "^7.4.0",
     "@react-navigation/elements": "^2.6.3",
     "@react-navigation/native": "^7.1.8",
-<<<<<<< HEAD
     "@tanstack/react-query": "^5.99.0",
     "axios": "^1.15.0",
-=======
-    "axios": "^1.14.0",
->>>>>>> 696b92e0a426dae6ca1eff02154778312c25fac8
     "expo": "~54.0.33",
     "expo-constants": "~18.0.13",
     "expo-font": "~14.0.11",
