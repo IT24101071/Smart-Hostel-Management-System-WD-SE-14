@@ -2,21 +2,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, Text, View } from 'react-native';
 import { COLORS } from '../../constants/colors';
 
-type RoomDetailRowProps = {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  value: string;
-  valueColor?: string;
-  noBorder?: boolean;
-};
-
 export default function RoomDetailRow({
   icon,
   label,
   value,
   valueColor,
   noBorder,
-}: RoomDetailRowProps) {
+}) {
   return (
     <View style={[styles.row, noBorder && styles.rowNoBorder]}>
       <View style={styles.left}>

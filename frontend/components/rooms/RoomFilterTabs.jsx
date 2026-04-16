@@ -1,15 +1,9 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { COLORS } from '../../constants/colors';
 
-export const ROOM_FILTERS = ['All', 'Available', 'Full', 'Maintenance'] as const;
-export type RoomFilter = (typeof ROOM_FILTERS)[number];
+export const ROOM_FILTERS = ['All', 'Available', 'Full', 'Maintenance'];
 
-type RoomFilterTabsProps = {
-  activeFilter: RoomFilter;
-  onChange: (filter: RoomFilter) => void;
-};
-
-export default function RoomFilterTabs({ activeFilter, onChange }: RoomFilterTabsProps) {
+export default function RoomFilterTabs({ activeFilter, onChange }) {
   return (
     <View style={styles.container}>
       {ROOM_FILTERS.map((f) => (

@@ -4,16 +4,9 @@ import { Platform } from "react-native";
 const KEYS = {
   TOKEN: "auth_token",
   USER: "auth_user",
-} as const;
-
-export type StoredUser = {
-  id: string;
-  name: string;
-  email: string;
-  role: "student" | "warden" | "admin";
 };
 
-async function setItem(key: string, value: string): Promise<void> {
+async function setItem(key, value) {
   if (Platform.OS === "web") {
     localStorage.setItem(key, value);
     return;
@@ -21,14 +14,14 @@ async function setItem(key: string, value: string): Promise<void> {
   await SecureStore.setItemAsync(key, value);
 }
 
-async function getItem(key: string): Promise<string | null> {
+async function getItem(key) {
   if (Platform.OS === "web") {
     return localStorage.getItem(key);
   }
   return SecureStore.getItemAsync(key);
 }
 
-async function removeItem(key: string): Promise<void> {
+async function removeItem(key) {
   if (Platform.OS === "web") {
     localStorage.removeItem(key);
     return;
@@ -37,32 +30,32 @@ async function removeItem(key: string): Promise<void> {
 }
 
 export const storage = {
-  async setToken(token: string): Promise<void> {
+  async setToken(token) {
     await setItem(KEYS.TOKEN, token);
   },
 
-  async getToken(): Promise<string | null> {
+  async getToken() {
     return getItem(KEYS.TOKEN);
   },
 
-  async deleteToken(): Promise<void> {
+  async deleteToken() {
     await removeItem(KEYS.TOKEN);
   },
 
-  async setUser(user: StoredUser): Promise<void> {
+  async setUser(user) {
     await setItem(KEYS.USER, JSON.stringify(user));
   },
 
-  async getUser(): Promise<StoredUser | null> {
+  async getUser() {
     const raw = await getItem(KEYS.USER);
-    return raw ? (JSON.parse(raw) as StoredUser) : null;
+    return raw ? JSON.parse(raw) : null;
   },
 
-  async deleteUser(): Promise<void> {
+  async deleteUser() {
     await removeItem(KEYS.USER);
   },
 
-  async clear(): Promise<void> {
+  async clear() {
     await Promise.all([removeItem(KEYS.TOKEN), removeItem(KEYS.USER)]);
   },
 };

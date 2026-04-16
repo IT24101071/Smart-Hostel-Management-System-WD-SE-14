@@ -1,12 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { COLORS } from '../../constants/colors';
-import { Room } from '../../types/room';
 
-type RoomStatsBarProps = {
-  rooms: Room[];
-};
-
-export default function RoomStatsBar({ rooms }: RoomStatsBarProps) {
+export default function RoomStatsBar({ rooms }) {
   const available = rooms.filter((r) => r.availabilityStatus === 'Available').length;
   const full = rooms.filter((r) => r.availabilityStatus === 'Full').length;
   const maintenance = rooms.filter((r) => r.availabilityStatus === 'Maintenance').length;
@@ -24,7 +19,7 @@ export default function RoomStatsBar({ rooms }: RoomStatsBarProps) {
   );
 }
 
-function StatItem({ value, label, valueColor }: { value: number; label: string; valueColor?: string }) {
+function StatItem({ value, label, valueColor }) {
   return (
     <View style={styles.statItem}>
       <Text style={[styles.statValue, valueColor ? { color: valueColor } : undefined]}>

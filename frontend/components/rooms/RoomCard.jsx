@@ -1,16 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { COLORS, STATUS_COLORS } from '../../constants/colors';
-import { Room } from '../../types/room';
 
-type RoomCardProps = {
-  room: Room;
-  onView: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
-};
-
-export default function RoomCard({ room, onView, onEdit, onDelete }: RoomCardProps) {
+export default function RoomCard({ room, onView, onEdit, onDelete }) {
   const statusStyle = STATUS_COLORS[room.availabilityStatus];
 
   const coverImage = room.images?.[0];

@@ -15,16 +15,15 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ScreenHeader, { HeaderIconButton } from '../../../components/rooms/ScreenHeader';
 import RoomCard from '../../../components/rooms/RoomCard';
-import RoomFilterTabs, { RoomFilter } from '../../../components/rooms/RoomFilterTabs';
+import RoomFilterTabs from '../../../components/rooms/RoomFilterTabs';
 import RoomStatsBar from '../../../components/rooms/RoomStatsBar';
 import { COLORS } from '../../../constants/colors';
 import { deleteRoom, getRoomErrorMessage, getRooms } from '../../../services/room.service';
-import { Room } from '../../../types/room';
 
 export default function RoomsScreen() {
   const router = useRouter();
-  const [activeFilter, setActiveFilter] = useState<RoomFilter>('All');
-  const [rooms, setRooms] = useState<Room[]>([]);
+  const [activeFilter, setActiveFilter] = useState('All');
+  const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -57,7 +56,7 @@ export default function RoomsScreen() {
       ? rooms
       : rooms.filter((r) => r.availabilityStatus === activeFilter);
 
-  function handleDelete(room: Room) {
+  function handleDelete(room) {
     Alert.alert(
       'Delete Room',
       `Are you sure you want to delete Room ${room.roomNumber}? This action cannot be undone.`,
@@ -130,8 +129,8 @@ export default function RoomsScreen() {
               <RoomCard
                 key={room.id}
                 room={room}
-                onView={() => router.push(`/admin/rooms/${room.id}` as never)}
-                onEdit={() => router.push(`/admin/rooms/${room.id}/edit` as never)}
+                onView={() => router.push(`/admin/rooms/${room.id}`)}
+                onEdit={() => router.push(`/admin/rooms/${room.id}/edit`)}
                 onDelete={() => handleDelete(room)}
               />
             ))
@@ -146,7 +145,7 @@ export default function RoomsScreen() {
   );
 }
 
-function EmptyState({ filter, onAdd }: { filter: RoomFilter; onAdd: () => void }) {
+function EmptyState({ filter, onAdd }) {
   return (
     <View style={styles.emptyState}>
       <Ionicons name="bed-outline" size={56} color="#D1D5DB" />

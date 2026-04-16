@@ -1,12 +1,7 @@
 import React from 'react';
 import Svg, { Path } from 'react-native-svg';
 
-interface SmartHostelLogoProps {
-  width?: number;
-  height?: number;
-}
-
-export default function SmartHostelLogo({ width = 160, height = 30 }: SmartHostelLogoProps) {
+export default function SmartHostelLogo({ width = 160, height = 30 }) {
   return (
     <Svg width={width} height={height} viewBox="0 0 190 35" fill="none">
       <Path

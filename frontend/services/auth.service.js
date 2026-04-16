@@ -1,23 +1,6 @@
 import { AxiosError } from 'axios';
 import apiClient from '../lib/axios';
 
-// ── Types ────────────────────────────────────────────────────────
-
-export type LoginPayload = {
-  email: string;
-  password: string;
-};
-
-export type LoginResponse = {
-  token: string;
-  user: {
-    id: string;
-    name: string;
-    email: string;
-    role: 'student' | 'warden' | 'admin';
-  };
-};
-
 // ── API calls ────────────────────────────────────────────────────
 
 /**
@@ -25,8 +8,8 @@ export type LoginResponse = {
  * Returns the JWT token and basic user info on success.
  * Throws an AxiosError on 400 (bad credentials) or 403 (not approved).
  */
-export async function login(payload: LoginPayload): Promise<LoginResponse> {
-  const { data } = await apiClient.post<LoginResponse>('/auth/login', payload);
+export async function login(payload) {
+  const { data } = await apiClient.post('/auth/login', payload);
   return data;
 }
 
@@ -36,10 +19,10 @@ export async function login(payload: LoginPayload): Promise<LoginResponse> {
  * Extracts a human-readable message from any thrown error so the UI
  * never has to inspect raw Axios internals.
  */
-export function getAuthErrorMessage(error: unknown): string {
+export function getAuthErrorMessage(error) {
   if (error instanceof AxiosError) {
     // Server sent a { message: "..." } body
-    const serverMessage = error.response?.data?.message as string | undefined;
+    const serverMessage = error.response?.data?.message;
     if (serverMessage) return serverMessage;
 
     // Request left but no response arrived

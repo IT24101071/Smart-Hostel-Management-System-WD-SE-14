@@ -2,19 +2,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { COLORS } from '../../constants/colors';
 
-type ScreenHeaderProps = {
-  title: string;
-  subtitle?: string;
-  onBack: () => void;
-  rightElement?: React.ReactNode;
-};
-
 export default function ScreenHeader({
   title,
   subtitle,
   onBack,
   rightElement,
-}: ScreenHeaderProps) {
+}) {
   return (
     <View style={styles.header}>
       <Pressable style={styles.backButton} onPress={onBack} hitSlop={8}>
@@ -36,9 +29,6 @@ export default function ScreenHeader({
 export function HeaderIconButton({
   icon,
   onPress,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  onPress: () => void;
 }) {
   return (
     <Pressable style={styles.iconButton} onPress={onPress} hitSlop={8}>

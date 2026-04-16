@@ -210,7 +210,7 @@ export default function SignupForm() {
 
 /* ─── Small helper components ─────────────────────────────────── */
 
-function FieldGroup({ label, children }: { label: string; children: React.ReactNode }) {
+function FieldGroup({ label, children }) {
   return (
     <View style={styles.fieldGroup}>
       <Text style={styles.fieldLabel}>{label}</Text>
@@ -226,13 +226,6 @@ function InputRow({
   onChangeText,
   keyboardType,
   autoCapitalize,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  placeholder: string;
-  value: string;
-  onChangeText: (t: string) => void;
-  keyboardType?: 'default' | 'email-address' | 'phone-pad';
-  autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
 }) {
   return (
     <View style={styles.inputRow}>
