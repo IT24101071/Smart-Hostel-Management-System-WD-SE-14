@@ -5,15 +5,14 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  StatusBar,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AdminSubHeader from '../../../components/admin/AdminSubHeader';
 import RoomForm from '../../../components/rooms/RoomForm';
-import ScreenHeader from '../../../components/rooms/ScreenHeader';
 import { COLORS } from '../../../constants/colors';
 import { createRoom, getRoomErrorMessage } from '../../../services/room.service';
 
@@ -28,7 +27,11 @@ export default function CreateRoomScreen() {
     try {
       const room = await createRoom(values);
       Alert.alert('Success', `Room ${room.roomNumber} has been created successfully.`, [
-        { text: 'OK', onPress: () => router.back() },
+        {
+          text: 'OK',
+          onPress: () =>
+            router.replace(`/admin/rooms/${encodeURIComponent(String(room.id))}`),
+        },
       ]);
     } catch (err) {
       setApiError(getRoomErrorMessage(err));
@@ -38,10 +41,8 @@ export default function CreateRoomScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
-
-      <ScreenHeader
+    <SafeAreaView style={styles.safeArea} edges={['bottom']}>
+      <AdminSubHeader
         title="Add New Room"
         subtitle="Fill in the room details below"
         onBack={() => router.back()}

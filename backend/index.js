@@ -2,9 +2,9 @@ import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
 import connectDB from "./config/db.js";
-import authRoutes from "./routes/authRoutes.js";
+import authRoutes from "./routes/auth.routes.js";
 import roomRoutes from "./routes/room.routes.js"; // From main
-import wardenRoutes from "./routes/wardenRoutes.js"; // Your work
+import wardenRoutes from "./routes/warden.routes.js"; // Your work
 
 dotenv.config();
 connectDB();
@@ -15,10 +15,13 @@ app.use(express.json());
 
 // Routes
 app.use("/api/auth", authRoutes);
-app.use("/api/rooms", roomRoutes);   // From main
+app.use("/api/rooms", roomRoutes); // From main
 app.use("/api/warden", wardenRoutes); // Your work
 
 app.get("/health", (req, res) => res.send("API is running!"));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server on port ${PORT}`));
+// Listen on all interfaces so phones/emulators on the LAN can reach the API (not only 127.0.0.1).
+app.listen(PORT, "0.0.0.0", () =>
+  console.log(`Server on port ${PORT} (0.0.0.0)`),
+);

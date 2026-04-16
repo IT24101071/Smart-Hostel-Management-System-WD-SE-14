@@ -17,6 +17,13 @@ const recalculateAvailability = ({ currentOccupancy, capacity, status }) => {
 
 export const createRoom = async (req, res) => {
   try {
+    console.log(
+      "[createRoom] Files received:",
+      req.files?.length || 0,
+      "files",
+    );
+    console.log("[createRoom] Request body:", req.body);
+
     const { roomNumber, roomType, pricePerMonth, capacity, description } =
       req.body;
 
@@ -44,7 +51,13 @@ export const createRoom = async (req, res) => {
       return res.status(409).json({ message: "roomNumber already exists" });
     }
 
+    console.log(
+      "[createRoom] Uploading",
+      req.files?.length || 0,
+      "files to R2",
+    );
     const imageUrls = await uploadMultipleToR2(req.files || []);
+    console.log("[createRoom] Uploaded URLs:", imageUrls);
 
     const room = await Room.create({
       roomNumber,
@@ -121,6 +134,13 @@ export const getRoomById = async (req, res) => {
 
 export const updateRoom = async (req, res) => {
   try {
+    console.log(
+      "[updateRoom] Files received:",
+      req.files?.length || 0,
+      "files",
+    );
+    console.log("[updateRoom] Request body:", req.body);
+
     const room = await Room.findById(req.params.id);
     if (!room) return res.status(404).json({ message: "Room not found" });
 
@@ -131,6 +151,7 @@ export const updateRoom = async (req, res) => {
       roomType,
       availabilityStatus,
       imageAction = "append",
+      keptImageUrls: keptImageUrlsRaw,
     } = req.body;
 
     if (pricePerMonth !== undefined) {
@@ -172,8 +193,44 @@ export const updateRoom = async (req, res) => {
       room.availabilityStatus = availabilityStatus;
     }
 
-    if (req.files?.length) {
+    const hasKeptPayload = Object.prototype.hasOwnProperty.call(
+      req.body,
+      "keptImageUrls",
+    );
+
+    if (hasKeptPayload) {
+      let kept = [];
+      try {
+        const parsed = JSON.parse(keptImageUrlsRaw || "[]");
+        if (Array.isArray(parsed)) kept = parsed;
+      } catch {
+        kept = [];
+      }
+      const previous = new Set(room.images || []);
+      const seen = new Set();
+      const keptValid = kept.filter((u) => {
+        if (typeof u !== "string" || !previous.has(u) || seen.has(u))
+          return false;
+        seen.add(u);
+        return true;
+      });
+
+      let uploadedUrls = [];
+      if (req.files?.length) {
+        uploadedUrls = await uploadMultipleToR2(req.files);
+      }
+
+      room.images = [...keptValid, ...uploadedUrls];
+
+      if (room.images.length > 5) {
+        return res
+          .status(400)
+          .json({ message: "A room can have a maximum of 5 images" });
+      }
+    } else if (req.files?.length) {
+      console.log("[updateRoom] Uploading", req.files.length, "files to R2");
       const uploadedUrls = await uploadMultipleToR2(req.files);
+      console.log("[updateRoom] Uploaded URLs:", uploadedUrls);
 
       if (imageAction === "replace") {
         room.images = uploadedUrls;
@@ -186,6 +243,8 @@ export const updateRoom = async (req, res) => {
           .status(400)
           .json({ message: "A room can have a maximum of 5 images" });
       }
+    } else {
+      console.log("[updateRoom] No files to upload");
     }
 
     if (room.currentOccupancy > room.capacity) {

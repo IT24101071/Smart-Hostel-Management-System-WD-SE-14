@@ -42,13 +42,25 @@ export default function LoginForm() {
       await storage.setToken(token);
       await storage.setUser(user);
 
-      if (user.role !== "admin") {
+      // Route based on user role
+      if (user.role === "admin") {
+        router.replace("/admin");
+      } else if (user.role === "student") {
+        if (!user.isApproved) {
+          await storage.clear();
+          setError(
+            "Your account is pending approval. Please wait for admin confirmation.",
+          );
+          return;
+        }
+        router.replace("/student");
+      } else if (user.role === "warden") {
+        router.replace("/warden");
+      } else {
         await storage.clear();
-        setError("Access denied. This portal is for admin accounts only.");
+        setError("Invalid user role. Please contact support.");
         return;
       }
-
-      router.replace("/admin");
     } catch (err) {
       console.error("[LoginForm] Sign-in failed:", err);
       setError(getAuthErrorMessage(err));

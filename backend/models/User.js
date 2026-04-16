@@ -11,7 +11,16 @@ const userSchema = new mongoose.Schema(
       default: "student",
     },
     isApproved: { type: Boolean, default: false },
+
+    // student specific fields
+    studentId: { type: String },
+    year: { type: Number },
+    semester: { type: Number },
+    contactNo: { type: String },
+    guardianName: { type: String },
+    guardianContact: { type: String },
     profileImage: { type: String },
+    idCardImage: { type: String },
   },
   { timestamps: true },
 );
