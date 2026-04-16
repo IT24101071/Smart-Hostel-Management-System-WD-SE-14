@@ -1,6 +1,6 @@
-import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { Ionicons } from "@expo/vector-icons";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -8,30 +8,33 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  StatusBar,
   StyleSheet,
   Text,
   View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import RoomForm from '../../../../components/rooms/RoomForm';
-import ScreenHeader from '../../../../components/rooms/ScreenHeader';
-import { COLORS } from '../../../../constants/colors';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import AdminSubHeader from "../../../../components/admin/AdminSubHeader";
+import RoomForm from "../../../../components/rooms/RoomForm";
+import { COLORS } from "../../../../constants/colors";
 import {
   getRoomById,
   getRoomErrorMessage,
   updateRoom,
-} from '../../../../services/room.service';
+} from "../../../../services/room.service";
 
 function roomToFormValues(room) {
+  const existing =
+    Array.isArray(room.images) && room.images.length
+      ? room.images.filter((u) => typeof u === "string" && u.trim() !== "")
+      : [];
   return {
     roomNumber: room.roomNumber,
     roomType: room.roomType,
     pricePerMonth: String(room.pricePerMonth),
     capacity: room.capacity,
-    description: room.description ?? '',
+    description: room.description ?? "",
     availabilityStatus: room.availabilityStatus,
-    imageUris: [], // start empty; new picks are appended to existing backend images
+    imageUris: [...existing],
   };
 }
 
@@ -41,14 +44,14 @@ export default function EditRoomScreen() {
 
   const [room, setRoom] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [fetchError, setFetchError] = useState('');
+  const [fetchError, setFetchError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [apiError, setApiError] = useState('');
+  const [apiError, setApiError] = useState("");
 
   useEffect(() => {
     async function fetch() {
       setLoading(true);
-      setFetchError('');
+      setFetchError("");
       try {
         const data = await getRoomById(id);
         setRoom(data);
@@ -62,13 +65,23 @@ export default function EditRoomScreen() {
   }, [id]);
 
   async function handleSubmit(values) {
-    setApiError('');
+    setApiError("");
     setSubmitting(true);
     try {
       const updated = await updateRoom(id, values);
-      Alert.alert('Success', `Room ${updated.roomNumber} has been updated successfully.`, [
-        { text: 'OK', onPress: () => router.back() },
-      ]);
+      Alert.alert(
+        "Success",
+        `Room ${updated.roomNumber} has been updated successfully.`,
+        [
+          {
+            text: "OK",
+            onPress: () =>
+              router.replace(
+                `/admin/rooms/${encodeURIComponent(String(updated.id ?? id))}`,
+              ),
+          },
+        ],
+      );
     } catch (err) {
       setApiError(getRoomErrorMessage(err));
     } finally {
@@ -76,12 +89,10 @@ export default function EditRoomScreen() {
     }
   }
 
-  // ── Loading ──────────────────────────────────────────────────────
   if (loading) {
     return (
-      <SafeAreaView style={styles.safeArea}>
-        <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
-        <ScreenHeader title="Edit Room" onBack={() => router.back()} />
+      <SafeAreaView style={styles.safeArea} edges={["bottom"]}>
+        <AdminSubHeader title="Edit Room" onBack={() => router.back()} />
         <View style={styles.centeredBox}>
           <ActivityIndicator size="large" color={COLORS.primary} />
           <Text style={styles.loadingText}>Loading room data…</Text>
@@ -90,12 +101,10 @@ export default function EditRoomScreen() {
     );
   }
 
-  // ── Fetch error ──────────────────────────────────────────────────
   if (fetchError || !room) {
     return (
-      <SafeAreaView style={styles.safeArea}>
-        <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
-        <ScreenHeader title="Edit Room" onBack={() => router.back()} />
+      <SafeAreaView style={styles.safeArea} edges={["bottom"]}>
+        <AdminSubHeader title="Edit Room" onBack={() => router.back()} />
         <View style={styles.centeredBox}>
           <Ionicons name="cloud-offline-outline" size={48} color="#D1D5DB" />
           <Text style={styles.errorTitle}>Failed to load room</Text>
@@ -109,34 +118,39 @@ export default function EditRoomScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
-
-      <ScreenHeader
+    <SafeAreaView style={styles.safeArea} edges={["bottom"]}>
+      <AdminSubHeader
         title="Edit Room"
         subtitle={`Room ${room.roomNumber}`}
         onBack={() => router.back()}
       />
 
-      {/* Edit notice */}
       <View style={styles.notice}>
-        <Ionicons name="information-circle-outline" size={16} color={COLORS.primary} />
+        <Ionicons
+          name="information-circle-outline"
+          size={16}
+          color={COLORS.primary}
+        />
         <Text style={styles.noticeText}>
-          Capacity cannot be set below current occupancy ({room.currentOccupancy} occupied).
+          Capacity cannot be set below current occupancy (
+          {room.currentOccupancy} occupied).
         </Text>
       </View>
 
-      {/* API error banner */}
-      {apiError !== '' && (
+      {apiError !== "" && (
         <View style={styles.errorBanner}>
-          <Ionicons name="alert-circle-outline" size={16} color={COLORS.maintenance} />
+          <Ionicons
+            name="alert-circle-outline"
+            size={16}
+            color={COLORS.maintenance}
+          />
           <Text style={styles.errorText}>{apiError}</Text>
         </View>
       )}
 
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <ScrollView
           contentContainerStyle={styles.content}
@@ -144,8 +158,9 @@ export default function EditRoomScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <RoomForm
+            key={String(room.id)}
             initialValues={roomToFormValues(room)}
-            submitLabel={submitting ? 'Saving…' : 'Save Changes'}
+            submitLabel={submitting ? "Saving…" : "Save Changes"}
             submitting={submitting}
             onCancel={() => router.back()}
             onSubmit={handleSubmit}
@@ -163,28 +178,28 @@ const styles = StyleSheet.create({
 
   centeredBox: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     gap: 10,
     paddingHorizontal: 32,
   },
   loadingText: {
-    fontFamily: 'PublicSans_400Regular',
+    fontFamily: "PublicSans_400Regular",
     fontSize: 14,
     color: COLORS.textMuted,
     marginTop: 4,
   },
   errorTitle: {
-    fontFamily: 'PublicSans_600SemiBold',
+    fontFamily: "PublicSans_600SemiBold",
     fontSize: 16,
     color: COLORS.textSecondary,
     marginTop: 8,
   },
   errorSubtitle: {
-    fontFamily: 'PublicSans_400Regular',
+    fontFamily: "PublicSans_400Regular",
     fontSize: 13,
     color: COLORS.textMuted,
-    textAlign: 'center',
+    textAlign: "center",
     lineHeight: 20,
   },
   retryButton: {
@@ -195,31 +210,31 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   retryText: {
-    fontFamily: 'PublicSans_600SemiBold',
+    fontFamily: "PublicSans_600SemiBold",
     fontSize: 14,
     color: COLORS.white,
   },
 
   notice: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     gap: 8,
     backgroundColor: COLORS.primaryLight,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#BFDBFE',
+    borderBottomColor: "#BFDBFE",
   },
   noticeText: {
-    fontFamily: 'PublicSans_400Regular',
+    fontFamily: "PublicSans_400Regular",
     fontSize: 12.5,
     color: COLORS.primary,
     flex: 1,
     lineHeight: 18,
   },
   errorBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
     backgroundColor: COLORS.maintenanceBg,
     borderBottomWidth: 1,
@@ -228,7 +243,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   errorText: {
-    fontFamily: 'PublicSans_400Regular',
+    fontFamily: "PublicSans_400Regular",
     fontSize: 13,
     color: COLORS.maintenance,
     flex: 1,

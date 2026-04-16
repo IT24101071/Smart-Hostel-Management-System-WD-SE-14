@@ -1,17 +1,11 @@
-import { Stack, router } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { COLORS } from '../../constants/colors';
-import { storage } from '../../lib/storage';
+import { router, Stack } from "expo-router";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, StatusBar, StyleSheet, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import AdminAppBar from "../../components/admin/AdminAppBar";
+import { COLORS } from "../../constants/colors";
+import { storage } from "../../lib/storage";
 
-/**
- * Route-level guard for the entire /admin subtree.
- *
- * On every mount it reads the stored user from SecureStore:
- *   • No session  → redirect to login
- *   • Role ≠ admin → clear session + redirect to login
- *   • Role = admin → render child screens normally
- */
 export default function AdminLayout() {
   const [ready, setReady] = useState(false);
 
@@ -20,13 +14,13 @@ export default function AdminLayout() {
       const user = await storage.getUser();
 
       if (!user) {
-        router.replace('/');
+        router.replace("/");
         return;
       }
 
-      if (user.role !== 'admin') {
+      if (user.role !== "admin") {
         await storage.clear();
-        router.replace('/');
+        router.replace("/");
         return;
       }
 
@@ -44,14 +38,34 @@ export default function AdminLayout() {
     );
   }
 
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return (
+    <View style={styles.root}>
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
+      <SafeAreaView edges={["top"]} style={styles.appBarSafe}>
+        <AdminAppBar />
+      </SafeAreaView>
+      <View style={styles.stackWrap}>
+        <Stack screenOptions={{ headerShown: false }} />
+      </View>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  appBarSafe: {
+    backgroundColor: COLORS.primary,
+  },
+  stackWrap: {
+    flex: 1,
+  },
   loadingContainer: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: COLORS.background,
   },
 });
