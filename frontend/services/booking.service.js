@@ -102,10 +102,33 @@ export async function getMyLatestBooking() {
   return mapBooking(data.booking);
 }
 
-export async function respondToPeerInvite(bookingId, action) {
-  return fetchApi(`/bookings/${encodeURIComponent(bookingId)}/peer-response`, {
+export async function getMyBookings() {
+  const data = await fetchApi("/bookings/me", { method: "GET" });
+  const list = Array.isArray(data?.data) ? data.data : [];
+  return list.map(mapBooking).filter(Boolean);
+}
+
+export async function getBookingReceipt(bookingId) {
+  if (!bookingId) {
+    throw new Error("Booking ID is required");
+  }
+  return fetchApi(`/bookings/${bookingId}/receipt`, { method: "GET" });
+}
+
+export async function cancelBooking(bookingId) {
+  if (!bookingId) {
+    throw new Error("Booking ID is required");
+  }
+  return fetchApi(`/bookings/${bookingId}/cancel`, { method: "POST" });
+}
+
+export async function extendBooking(bookingId, payload) {
+  if (!bookingId) {
+    throw new Error("Booking ID is required");
+  }
+  return fetchApi(`/bookings/${bookingId}/extend`, {
     method: "POST",
-    body: { action },
+    body: payload,
   });
 }
 

@@ -23,12 +23,23 @@ import {
 } from '../../constants/paymentBank';
 import {
   createBooking,
+  extendBooking,
   getBookingErrorMessage,
 } from '../../services/booking.service';
 import { getRoomById, getRoomErrorMessage } from '../../services/room.service';
 
 function useRoomIdParam() {
-  const { roomId, checkInDate, checkOutDate, stayDays, roomFees, securityDeposit, totalDue, peers, peerInviteId, paymentSplitMode } =
+  const {
+    roomId,
+    checkInDate,
+    checkOutDate,
+    stayDays,
+    roomFees,
+    securityDeposit,
+    totalDue,
+    manageAction,
+    bookingId,
+  } =
     useLocalSearchParams();
   const pick = (value) => (Array.isArray(value) ? value[0] ?? '' : value ?? '');
   return {
@@ -39,9 +50,8 @@ function useRoomIdParam() {
     roomFees: pick(roomFees),
     securityDeposit: pick(securityDeposit),
     totalDue: pick(totalDue),
-    peers: pick(peers),
-    peerInviteId: pick(peerInviteId),
-    paymentSplitMode: pick(paymentSplitMode),
+    manageAction: pick(manageAction),
+    bookingId: pick(bookingId),
   };
 }
 
@@ -103,18 +113,6 @@ export default function StudentPaymentScreen() {
     };
   }, [roomIdValue]);
 
-  const parsedPeers = useMemo(() => {
-    if (!bookingParams.peers) return [];
-    try {
-      const value = JSON.parse(bookingParams.peers);
-      return Array.isArray(value)
-        ? value.map((v) => String(v ?? '').trim()).filter(Boolean)
-        : [];
-    } catch {
-      return [];
-    }
-  }, [bookingParams.peers]);
-
   const deposit = useMemo(() => {
     const n = Number(bookingParams.securityDeposit);
     if (Number.isFinite(n) && n >= 0) return n;
@@ -134,12 +132,8 @@ export default function StudentPaymentScreen() {
   }, [bookingParams.totalDue, deposit, roomFees]);
 
   const hasBookingDates = Boolean(bookingParams.checkInDate && bookingParams.checkOutDate);
-  const splitMode =
-    parsedPeers.length > 0 && bookingParams.paymentSplitMode === 'split'
-      ? 'split'
-      : 'single';
-  const splitPayAmount = useMemo(() => Math.round(total / 2), [total]);
-  const payNowAmount = splitMode === 'split' ? splitPayAmount : total;
+  const isExtensionPayment = bookingParams.manageAction === 'extend';
+  const payNowAmount = total;
 
   const cardPayReady = useMemo(() => {
     const num = digitsOnly(cardNumber);
@@ -175,10 +169,7 @@ export default function StudentPaymentScreen() {
         securityDeposit: deposit,
         totalDue: total,
         paymentMethod: method,
-        paymentSplitMode: splitMode,
         amountPaidNow: payNowAmount,
-        peers: parsedPeers,
-        peerInviteId: bookingParams.peerInviteId || undefined,
         receipt: method === 'bank' ? receipt : undefined,
         cardMasked:
           method === 'card'
@@ -188,12 +179,25 @@ export default function StudentPaymentScreen() {
               })()
             : undefined,
       };
-      await createBooking(payload);
+      if (isExtensionPayment) {
+        if (!bookingParams.bookingId) {
+          throw new Error('Missing booking ID for stay extension');
+        }
+        await extendBooking(bookingParams.bookingId, {
+          newCheckInDate: bookingParams.checkInDate,
+          newCheckOutDate: bookingParams.checkOutDate,
+          paymentMethod: method,
+          receipt: method === 'bank' ? receipt : undefined,
+          cardMasked: payload.cardMasked,
+        });
+      } else {
+        await createBooking(payload);
+      }
       setIsPaying(false);
       Alert.alert(
         'Payment successful',
-        splitMode === 'split'
-          ? 'Your half payment is completed. The remaining half is pending from your peer.'
+        isExtensionPayment
+          ? 'Your stay extension payment was completed successfully.'
           : 'Your payment was completed successfully.',
         [{ text: 'OK', onPress: () => router.replace('/student') }],
       );
@@ -211,10 +215,9 @@ export default function StudentPaymentScreen() {
     deposit,
     total,
     method,
-    splitMode,
+    isExtensionPayment,
+    bookingParams.bookingId,
     payNowAmount,
-    parsedPeers,
-    bookingParams.peerInviteId,
     receipt,
     cardNumber,
     router,
@@ -285,7 +288,6 @@ export default function StudentPaymentScreen() {
             deposit={deposit}
             roomFees={roomFees}
             payableNow={payNowAmount}
-            splitMode={splitMode}
           />
           <PaymentMethodTabs value={method} onChange={setMethod} />
           <View style={styles.panel}>

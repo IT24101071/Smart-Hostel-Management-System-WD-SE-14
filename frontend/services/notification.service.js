@@ -105,13 +105,6 @@ export async function markAllNotificationsRead() {
   return fetchApi("/notifications/read-all", { method: "PATCH" });
 }
 
-export async function sendPeerInviteNotifications({ roomId, peers }) {
-  return fetchApi("/notifications/peer-invite", {
-    method: "POST",
-    body: { roomId, peers },
-  });
-}
-
 export function getNotificationErrorMessage(error) {
   if (error instanceof AxiosError) {
     const serverMessage = error.response?.data?.message;

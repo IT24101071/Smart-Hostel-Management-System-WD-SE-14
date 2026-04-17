@@ -10,26 +10,12 @@ export default function PaymentSummaryCard({
   deposit,
   roomFees,
   payableNow,
-  splitMode,
 }) {
-  const isSplit = splitMode === 'split';
   return (
     <View style={styles.card}>
-      <Text style={styles.totalLabel}>{isSplit ? 'Payable Now' : 'Total Due'}</Text>
-      <Text style={styles.totalValue}>{formatRs(isSplit ? payableNow : total)}</Text>
+      <Text style={styles.totalLabel}>Total Due</Text>
+      <Text style={styles.totalValue}>{formatRs(payableNow ?? total)}</Text>
       <View style={styles.divider} />
-      {isSplit ? (
-        <>
-          <View style={styles.row}>
-            <Text style={styles.rowLabel}>Your Half</Text>
-            <Text style={styles.rowValue}>{formatRs(payableNow)}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.rowLabel}>Peer Half (Pending)</Text>
-            <Text style={styles.rowValue}>{formatRs(total - payableNow)}</Text>
-          </View>
-        </>
-      ) : null}
       <View style={styles.row}>
         <Text style={styles.rowLabel}>Security Deposit</Text>
         <Text style={styles.rowValue}>{formatRs(deposit)}</Text>

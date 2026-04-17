@@ -3,7 +3,6 @@ import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,18 +12,10 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS } from "../../constants/colors";
 import {
-  respondToPeerInvite,
-  getBookingErrorMessage,
-} from "../../services/booking.service";
-import {
   getMyNotifications,
   getNotificationErrorMessage,
   markNotificationRead,
 } from "../../services/notification.service";
-import {
-  getPeerInviteErrorMessage,
-  respondToPreBookingInvite,
-} from "../../services/peerInvite.service";
 
 export default function StudentNotificationsScreen() {
   const insets = useSafeAreaInsets();
@@ -32,7 +23,6 @@ export default function StudentNotificationsScreen() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [actioningId, setActioningId] = useState("");
 
   const loadNotifications = useCallback(async () => {
     setLoading(true);
@@ -66,40 +56,6 @@ export default function StudentNotificationsScreen() {
       // ignore non-critical read errors
     }
   }, []);
-
-  const handlePeerAction = useCallback(
-    async (notification, action) => {
-      const preBookingInviteId = notification.meta?.peerInviteId;
-      if (!notification.booking && !preBookingInviteId) {
-        Alert.alert("Unavailable", "This invitation is no longer available.");
-        return;
-      }
-      setActioningId(notification.id);
-      try {
-        if (preBookingInviteId) {
-          await respondToPreBookingInvite(preBookingInviteId, action);
-        } else {
-          await respondToPeerInvite(notification.booking, action);
-        }
-        await markRead(notification.id);
-        Alert.alert(
-          action === "accept" ? "Accepted" : "Rejected",
-          action === "accept"
-            ? "You accepted this room invitation."
-            : "You rejected this room invitation.",
-        );
-        await loadNotifications();
-      } catch (e) {
-        Alert.alert(
-          "Action failed",
-          preBookingInviteId ? getPeerInviteErrorMessage(e) : getBookingErrorMessage(e),
-        );
-      } finally {
-        setActioningId("");
-      }
-    },
-    [loadNotifications, markRead],
-  );
 
   return (
     <View style={styles.root}>
@@ -140,11 +96,6 @@ export default function StudentNotificationsScreen() {
             </View>
           ) : (
             items.map((notification) => {
-              const isPeerInvite =
-                notification.type === "peer_booking_invite" &&
-                !notification.read &&
-                Boolean(notification.booking || notification.meta?.peerInviteId);
-              const isBusy = actioningId === notification.id;
               return (
                 <View
                   key={notification.id}
@@ -154,26 +105,7 @@ export default function StudentNotificationsScreen() {
                   <Text style={styles.message}>{notification.message}</Text>
                   <Text style={styles.time}>{formatTimeAgo(notification.createdAt)}</Text>
 
-                  {isPeerInvite ? (
-                    <View style={styles.actionsRow}>
-                      <Pressable
-                        style={[styles.actionBtn, styles.rejectBtn]}
-                        onPress={() => handlePeerAction(notification, "reject")}
-                        disabled={isBusy}
-                      >
-                        <Text style={styles.rejectText}>Reject</Text>
-                      </Pressable>
-                      <Pressable
-                        style={[styles.actionBtn, styles.acceptBtn]}
-                        onPress={() => handlePeerAction(notification, "accept")}
-                        disabled={isBusy}
-                      >
-                        <Text style={styles.acceptText}>
-                          {isBusy ? "Please wait..." : "Accept"}
-                        </Text>
-                      </Pressable>
-                    </View>
-                  ) : !notification.read ? (
+                  {!notification.read ? (
                     <Pressable
                       style={styles.markReadBtn}
                       onPress={() => markRead(notification.id)}
@@ -294,31 +226,6 @@ const styles = StyleSheet.create({
     fontFamily: "PublicSans_400Regular",
     fontSize: 12,
     color: COLORS.textMuted,
-  },
-  actionsRow: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 10,
-  },
-  actionBtn: {
-    flex: 1,
-    borderRadius: 10,
-    paddingVertical: 10,
-    alignItems: "center",
-  },
-  rejectBtn: {
-    backgroundColor: COLORS.maintenanceBg,
-  },
-  acceptBtn: {
-    backgroundColor: COLORS.primary,
-  },
-  rejectText: {
-    fontFamily: "PublicSans_600SemiBold",
-    color: COLORS.maintenance,
-  },
-  acceptText: {
-    fontFamily: "PublicSans_600SemiBold",
-    color: COLORS.white,
   },
   markReadBtn: {
     marginTop: 10,

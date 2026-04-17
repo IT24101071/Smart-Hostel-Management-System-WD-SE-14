@@ -9,15 +9,20 @@ export default function StayDetailsForm({
   onChangeCheckIn,
   onChangeCheckOut,
   errorMessage,
+  disableCheckIn = false,
+  disableCheckOut = false,
+  checkOutMinimumDate,
 }) {
-  const today = useMemo(() => {
+  const tomorrow = useMemo(() => {
     const now = new Date();
     now.setHours(0, 0, 0, 0);
+    now.setDate(now.getDate() + 1);
     return now;
   }, []);
 
   const checkOutMinDate =
-    checkInDate && checkInDate > today ? checkInDate : today;
+    checkOutMinimumDate ??
+    (checkInDate && checkInDate > tomorrow ? checkInDate : tomorrow);
 
   return (
     <View>
@@ -25,14 +30,16 @@ export default function StayDetailsForm({
       <StayDateField
         label="Check-In Date"
         value={checkInDate}
-        minimumDate={today}
+        minimumDate={tomorrow}
         onSelectDate={onChangeCheckIn}
+        disabled={disableCheckIn}
       />
       <StayDateField
         label="Check-Out Date"
         value={checkOutDate}
         minimumDate={checkOutMinDate}
         onSelectDate={onChangeCheckOut}
+        disabled={disableCheckOut}
       />
       {errorMessage ? <Text style={styles.error}>{errorMessage}</Text> : null}
     </View>

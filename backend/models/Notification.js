@@ -15,12 +15,7 @@ const notificationSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: [
-        "peer_booking_invite",
-        "peer_invite_accepted",
-        "peer_invite_rejected",
-        "booking_confirmed",
-      ],
+      enum: ["booking_confirmed", "booking_cancelled"],
       required: true,
     },
     title: { type: String, required: true, trim: true },

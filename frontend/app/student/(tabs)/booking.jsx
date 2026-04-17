@@ -18,44 +18,73 @@ import LegalAgreementCard from '../../../components/student/booking/LegalAgreeme
 import StayDetailsForm from '../../../components/student/booking/StayDetailsForm';
 import { LANDING } from '../../../components/landing/landingTheme';
 import { COLORS } from '../../../constants/colors';
+import {
+  cancelBooking,
+  extendBooking,
+  getBookingErrorMessage,
+  getMyBookings,
+} from '../../../services/booking.service';
 import { getRoomById, getRoomErrorMessage } from '../../../services/room.service';
 
 export default function StudentBookingScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { roomId, peers, peerInviteId } = useLocalSearchParams();
+  const { roomId, bookingId } = useLocalSearchParams();
   const roomIdValue = Array.isArray(roomId) ? roomId[0] : roomId;
-  const peersValue = Array.isArray(peers) ? peers[0] : peers;
-  const peerInviteIdValue = Array.isArray(peerInviteId) ? peerInviteId[0] : peerInviteId;
+  const bookingIdValue = Array.isArray(bookingId) ? bookingId[0] : bookingId;
   const [room, setRoom] = useState(null);
   const [loading, setLoading] = useState(false);
   const [roomError, setRoomError] = useState('');
   const [checkInDate, setCheckInDate] = useState(null);
   const [checkOutDate, setCheckOutDate] = useState(null);
   const [agreed, setAgreed] = useState(false);
-  const hasPeers = useMemo(() => {
-    if (!peersValue) return false;
-    try {
-      const parsed = JSON.parse(peersValue);
-      return Array.isArray(parsed) && parsed.length > 0;
-    } catch {
-      return false;
-    }
-  }, [peersValue]);
+  const [confirmedBooking, setConfirmedBooking] = useState(null);
+  const [isCancelling, setIsCancelling] = useState(false);
 
   useEffect(() => {
-    if (!roomIdValue) {
-      setRoom(null);
-      setRoomError('Select a room first from Room Details to continue booking.');
-      return;
-    }
     let cancelled = false;
     (async () => {
       setLoading(true);
       setRoomError('');
       try {
-        const data = await getRoomById(roomIdValue);
-        if (!cancelled) setRoom(data);
+        if (roomIdValue) {
+          const data = await getRoomById(roomIdValue);
+          if (!cancelled) {
+            setRoom(data);
+            setConfirmedBooking(null);
+            setCheckInDate(null);
+            setCheckOutDate(null);
+          }
+          return;
+        }
+
+        const bookings = await getMyBookings();
+        const latestConfirmed =
+          bookings.find(
+            (item) =>
+              item?.id === bookingIdValue &&
+              item?.bookingStatus === 'confirmed' &&
+              item?.room,
+          ) ??
+          bookings.find((item) => item?.bookingStatus === 'confirmed' && item?.room);
+        if (!cancelled) {
+          if (!latestConfirmed) {
+            setRoom(null);
+            setConfirmedBooking(null);
+            setCheckInDate(null);
+            setCheckOutDate(null);
+            setRoomError('No confirmed booking found. Reserve a room to continue.');
+            return;
+          }
+          setConfirmedBooking(latestConfirmed);
+          setRoom(latestConfirmed.room);
+          setCheckInDate(
+            latestConfirmed.checkInDate ? new Date(latestConfirmed.checkInDate) : null,
+          );
+          setCheckOutDate(
+            latestConfirmed.checkOutDate ? new Date(latestConfirmed.checkOutDate) : null,
+          );
+        }
       } catch (e) {
         if (!cancelled) setRoomError(getRoomErrorMessage(e));
       } finally {
@@ -66,7 +95,39 @@ export default function StudentBookingScreen() {
     return () => {
       cancelled = true;
     };
-  }, [roomIdValue]);
+  }, [roomIdValue, bookingIdValue]);
+
+  const manageMode = Boolean(confirmedBooking && !roomIdValue);
+  const today = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
+  const originalCheckOutDate = useMemo(() => {
+    if (!confirmedBooking?.checkOutDate) return null;
+    const d = new Date(confirmedBooking.checkOutDate);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, [confirmedBooking?.checkOutDate]);
+  const originalCheckInDate = useMemo(() => {
+    if (!confirmedBooking?.checkInDate) return null;
+    const d = new Date(confirmedBooking.checkInDate);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, [confirmedBooking?.checkInDate]);
+  const hasStayStarted = useMemo(() => {
+    if (!confirmedBooking?.checkInDate) return false;
+    const checkIn = new Date(confirmedBooking.checkInDate);
+    checkIn.setHours(0, 0, 0, 0);
+    return today >= checkIn;
+  }, [confirmedBooking?.checkInDate, today]);
+  const cancelDeadlineReached = useMemo(() => {
+    if (!confirmedBooking?.checkInDate) return false;
+    const d = new Date(confirmedBooking.checkInDate);
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() - 1);
+    return today > d;
+  }, [confirmedBooking?.checkInDate, today]);
 
   useEffect(() => {
     if (checkInDate && checkOutDate && checkOutDate <= checkInDate) {
@@ -75,14 +136,52 @@ export default function StudentBookingScreen() {
   }, [checkInDate, checkOutDate]);
 
   const stayValidationError = useMemo(() => {
+    if (manageMode) {
+      if (!checkInDate || !checkOutDate) {
+        return 'Please enter both check-in and check-out dates.';
+      }
+      const msPerDay = 86400000;
+      const originalDays =
+        originalCheckInDate && originalCheckOutDate
+          ? Math.max(
+              1,
+              Math.floor((originalCheckOutDate.getTime() - originalCheckInDate.getTime()) / msPerDay),
+            )
+          : 1;
+      const editedDays = Math.max(
+        1,
+        Math.floor((checkOutDate.getTime() - checkInDate.getTime()) / msPerDay),
+      );
+      if (editedDays < originalDays) {
+        return 'Reducing stay is not allowed. You can only keep or extend total stay duration.';
+      }
+      if (checkOutDate <= checkInDate) {
+        return 'Check-out date must be after check-in date.';
+      }
+      return '';
+    }
+
+    const tomorrow = new Date();
+    tomorrow.setHours(0, 0, 0, 0);
+    tomorrow.setDate(tomorrow.getDate() + 1);
     if (!checkInDate || !checkOutDate) {
       return 'Please enter both check-in and check-out dates.';
+    }
+    if (checkInDate < tomorrow) {
+      return 'Check-in date must be a future date (today is not allowed).';
     }
     if (checkOutDate <= checkInDate) {
       return 'Check-out date must be after check-in date.';
     }
     return '';
-  }, [checkInDate, checkOutDate]);
+  }, [
+    manageMode,
+    hasStayStarted,
+    originalCheckInDate,
+    originalCheckOutDate,
+    checkInDate,
+    checkOutDate,
+  ]);
 
   const depositSummary = useMemo(() => {
     const monthly = Number(room?.pricePerMonth ?? 0);
@@ -97,11 +196,41 @@ export default function StudentBookingScreen() {
       return { amount: monthly, subLabel: 'Per Month' };
     }
     const total = Math.round((monthly / 30) * stayDays);
+    if (manageMode && originalCheckOutDate && originalCheckInDate) {
+      const originalDays = Math.max(
+        1,
+        Math.floor((originalCheckOutDate.getTime() - originalCheckInDate.getTime()) / msPerDay),
+      );
+      const extraDays = stayDays - originalDays;
+      if (extraDays < 0) {
+        return { amount: 0, subLabel: 'Reducing stay is not allowed' };
+      }
+      const extraTotal = Math.round((monthly / 30) * extraDays);
+      return {
+        amount: extraTotal,
+        subLabel:
+          extraDays > 0
+            ? `Extension for ${extraDays} ${extraDays === 1 ? 'day' : 'days'}`
+            : 'No extension amount',
+      };
+    }
     const subLabel = `Rent for ${stayDays} ${stayDays === 1 ? 'day' : 'days'}`;
     return { amount: total, subLabel };
-  }, [room, checkInDate, checkOutDate, stayValidationError]);
+  }, [
+    room,
+    checkInDate,
+    checkOutDate,
+    stayValidationError,
+    manageMode,
+    originalCheckInDate,
+    originalCheckOutDate,
+  ]);
 
-  const confirmDisabled = !room || !!roomError || !!stayValidationError || !agreed;
+  const confirmDisabled =
+    !room ||
+    !!roomError ||
+    !!stayValidationError ||
+    !agreed;
 
   const confirmDisabledHint = useMemo(() => {
     if (!confirmDisabled) return '';
@@ -136,50 +265,83 @@ export default function StudentBookingScreen() {
     });
   }, [room]);
 
-  const handleConfirm = useCallback(() => {
+  const handleConfirm = useCallback(async () => {
     if (confirmDisabled || !room) return;
+    if (manageMode && confirmedBooking?.id && Number(depositSummary.amount) <= 0) {
+      try {
+        await extendBooking(confirmedBooking.id, {
+          newCheckInDate: checkInDate.toISOString(),
+          newCheckOutDate: checkOutDate.toISOString(),
+        });
+        Alert.alert('Stay updated', 'Your stay dates were updated successfully.', [
+          { text: 'OK', onPress: () => router.replace('/student') },
+        ]);
+      } catch (error) {
+        Alert.alert('Update failed', getBookingErrorMessage(error));
+      }
+      return;
+    }
     const msPerDay = 86400000;
     const stayDays = Math.max(
       1,
       Math.floor((checkOutDate.getTime() - checkInDate.getTime()) / msPerDay),
     );
     const q = new URLSearchParams();
-    q.set('roomId', String(room.id ?? roomIdValue ?? ''));
+    q.set('roomId', String(room.id ?? roomIdValue ?? room._id ?? ''));
     q.set('checkInDate', checkInDate.toISOString());
     q.set('checkOutDate', checkOutDate.toISOString());
     q.set('stayDays', String(stayDays));
     q.set('roomFees', String(Number(depositSummary.amount)));
-    q.set('securityDeposit', '5000');
-    q.set('totalDue', String(Number(depositSummary.amount) + 5000));
-    if (peersValue) q.set('peers', peersValue);
-    if (peerInviteIdValue) q.set('peerInviteId', peerInviteIdValue);
-    const routeToPayment = (splitMode) => {
-      q.set('paymentSplitMode', splitMode === 'split' ? 'split' : 'single');
-      router.push(`/student/payment?${q.toString()}`);
-    };
-    if (hasPeers) {
-      const totalDue = Number(depositSummary.amount) + 5000;
-      const halfDue = Math.round(totalDue / 2);
-      Alert.alert('Choose payment option', 'How do you want to pay for this shared booking?', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: `Pay full (${totalDue.toLocaleString()})`, onPress: () => routeToPayment('single') },
-        { text: `Pay half (${halfDue.toLocaleString()})`, onPress: () => routeToPayment('split') },
-      ]);
-      return;
+    q.set('securityDeposit', manageMode ? '0' : '5000');
+    q.set('totalDue', String(Number(depositSummary.amount) + (manageMode ? 0 : 5000)));
+    if (manageMode && confirmedBooking?.id) {
+      q.set('manageAction', 'extend');
+      q.set('bookingId', String(confirmedBooking.id));
     }
-    routeToPayment('single');
+    router.push(`/student/payment?${q.toString()}`);
   }, [
     confirmDisabled,
     room,
     checkInDate,
     checkOutDate,
     depositSummary,
-    peersValue,
-    hasPeers,
-    peerInviteIdValue,
+    manageMode,
+    confirmedBooking?.id,
+    extendBooking,
     roomIdValue,
     router,
   ]);
+
+  const handleCancelStay = useCallback(() => {
+    if (!confirmedBooking?.id) return;
+    Alert.alert(
+      'Cancel stay',
+      'Are you sure you want to cancel this stay?',
+      [
+        { text: 'No', style: 'cancel' },
+        {
+          text: 'Yes, cancel',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setIsCancelling(true);
+              await cancelBooking(confirmedBooking.id);
+              Alert.alert(
+                'Stay cancelled',
+                'Your booking was cancelled successfully. Payment will be reversed within 2 working days.',
+                [{ text: 'OK', onPress: () => router.replace('/student') }],
+              );
+            } catch (error) {
+              Alert.alert('Cancel failed', getBookingErrorMessage(error));
+            } finally {
+              setIsCancelling(false);
+            }
+          },
+        },
+      ],
+      { cancelable: true },
+    );
+  }, [confirmedBooking?.id, router]);
 
   return (
     <View style={styles.safe}>
@@ -192,7 +354,7 @@ export default function StudentBookingScreen() {
         >
           <Ionicons name="arrow-back" size={22} color={COLORS.primary} />
         </Pressable>
-        <Text style={styles.title}>Finalize Your Stay</Text>
+        <Text style={styles.title}>{manageMode ? 'Manage Stay' : 'Finalize Your Stay'}</Text>
         <Pressable
           style={styles.headerBtn}
           onPress={handleShare}
@@ -224,9 +386,20 @@ export default function StudentBookingScreen() {
         ) : roomError ? (
           <View style={styles.banner}>
             <Text style={styles.bannerText}>{roomError}</Text>
+            {!roomIdValue ? (
+              <Pressable style={styles.bannerAction} onPress={() => router.push('/student/rooms')}>
+                <Text style={styles.bannerActionText}>Browse Rooms</Text>
+              </Pressable>
+            ) : null}
           </View>
         ) : room ? (
-          <BookingSummaryCard room={room} />
+          <BookingSummaryCard
+            room={room}
+            checkInDate={checkInDate}
+            checkOutDate={checkOutDate}
+            paymentStatus={confirmedBooking?.paymentStatus}
+            bookingStatus={confirmedBooking?.bookingStatus}
+          />
         ) : (
           <View style={styles.banner}>
             <Text style={styles.bannerText}>Select a room to continue.</Text>
@@ -234,12 +407,39 @@ export default function StudentBookingScreen() {
         )}
 
         <View style={styles.section}>
+          {manageMode ? (
+            <View style={styles.ruleCard}>
+              <Text style={styles.ruleText}>
+                {hasStayStarted
+                  ? 'Stay started: you can extend your stay only. Reducing stay is not allowed.'
+                  : 'Before stay starts: you can edit stay dates, but reducing total stay is not allowed. You can also cancel up to one day before check-in.'}
+              </Text>
+              {!hasStayStarted ? (
+                <Pressable
+                  style={[styles.cancelBtn, (cancelDeadlineReached || isCancelling) && styles.cancelBtnDisabled]}
+                  onPress={handleCancelStay}
+                  disabled={cancelDeadlineReached || isCancelling}
+                >
+                  <Text style={styles.cancelBtnText}>
+                    {cancelDeadlineReached
+                      ? 'Cancellation Window Closed'
+                      : isCancelling
+                        ? 'Cancelling...'
+                        : 'Cancel Stay'}
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
           <StayDetailsForm
             checkInDate={checkInDate}
             checkOutDate={checkOutDate}
             onChangeCheckIn={setCheckInDate}
             onChangeCheckOut={setCheckOutDate}
             errorMessage={checkInDate || checkOutDate ? stayValidationError : ''}
+            disableCheckIn={false}
+            disableCheckOut={false}
+            checkOutMinimumDate={undefined}
           />
         </View>
 
@@ -321,6 +521,46 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.maintenance,
     textAlign: 'center',
+  },
+  bannerAction: {
+    marginTop: 10,
+    alignSelf: 'center',
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  bannerActionText: {
+    fontFamily: 'PublicSans_600SemiBold',
+    fontSize: 13,
+    color: COLORS.white,
+  },
+  ruleCard: {
+    backgroundColor: '#EEF4FB',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 10,
+  },
+  ruleText: {
+    fontFamily: 'PublicSans_500Medium',
+    fontSize: 13,
+    color: COLORS.textPrimary,
+  },
+  cancelBtn: {
+    marginTop: 10,
+    alignSelf: 'flex-start',
+    backgroundColor: '#B91C1C',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  cancelBtnDisabled: {
+    opacity: 0.55,
+  },
+  cancelBtnText: {
+    fontFamily: 'PublicSans_700Bold',
+    fontSize: 12,
+    color: COLORS.white,
   },
   bottomInline: {
     borderRadius: 12,

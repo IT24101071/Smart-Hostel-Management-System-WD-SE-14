@@ -3,6 +3,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,11 +11,19 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 import StudentTopBar from '../../../components/student/StudentTopBar';
 import { COLORS } from '../../../constants/colors';
 import apiClient from '../../../lib/axios';
 import { storage } from '../../../lib/storage';
-import { getMyLatestBooking } from '../../../services/booking.service';
+import {
+  getBookingReceipt,
+  getBookingErrorMessage,
+  getMyBookings,
+  getMyLatestBooking,
+} from '../../../services/booking.service';
 import { getMyNotifications } from '../../../services/notification.service';
 
 export default function StudentHomeScreen() {
@@ -29,7 +38,13 @@ export default function StudentHomeScreen() {
     router.push('/student/rooms');
   }, [router]);
 
-  const goBooking = useCallback(() => router.push('/student/booking'), [router]);
+  const goBooking = useCallback(() => {
+    if (booking?.id) {
+      router.push(`/student/booking?bookingId=${encodeURIComponent(String(booking.id))}`);
+      return;
+    }
+    router.push('/student/booking');
+  }, [router, booking?.id]);
   const goExpenses = useCallback(() => router.push('/student/expenses'), [router]);
   const goSupport = useCallback(() => router.push('/student/support'), [router]);
   const goNotifications = useCallback(
@@ -104,44 +119,84 @@ export default function StudentHomeScreen() {
     router.replace('/');
   }
 
+  const handleDownloadReceipt = useCallback(async () => {
+    try {
+      let targetBookingId =
+        booking?.id && booking?.paymentStatus === 'completed' ? booking.id : null;
+      if (!targetBookingId) {
+        const bookings = await getMyBookings();
+        const latestPaidBooking = bookings.find((item) => item.paymentStatus === 'completed');
+        targetBookingId = latestPaidBooking?.id ?? null;
+      }
+      if (!targetBookingId) {
+        Alert.alert('Receipt unavailable', 'No paid booking receipt found yet.');
+        return;
+      }
+      const receipt = await getBookingReceipt(targetBookingId);
+      const lines = String(receipt.content ?? '')
+        .split('\n')
+        .map((line) =>
+          line
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;'),
+        )
+        .join('<br />');
+      const html = `<!doctype html><html><head><meta charset="utf-8" /><style>body{font-family:Arial,sans-serif;padding:24px;color:#111}h1{font-size:20px;margin:0 0 12px}p{margin:0;line-height:1.45;white-space:normal}</style></head><body><h1>Booking Receipt</h1><p>${lines}</p></body></html>`;
+      const pdf = await Print.printToFileAsync({
+        html,
+        base64: true,
+      });
+      const safeFileName = String(receipt.fileName ?? 'booking-receipt.pdf')
+        .trim()
+        .replace(/[<>:"/\\|?*\x00-\x1F]/g, '-');
+      const downloadPath = `${FileSystem.documentDirectory}${safeFileName}`;
+      if (!pdf.base64) {
+        throw new Error('Could not generate receipt PDF data.');
+      }
+      await FileSystem.writeAsStringAsync(downloadPath, pdf.base64, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      const fileInfo = await FileSystem.getInfoAsync(downloadPath);
+      if (!fileInfo.exists) {
+        throw new Error('Receipt file was not saved.');
+      }
+      const sharingAvailable = await Sharing.isAvailableAsync();
+      if (!sharingAvailable) {
+        Alert.alert('Download complete', `Receipt saved as ${safeFileName}.`);
+        return;
+      }
+      await Sharing.shareAsync(downloadPath, {
+        dialogTitle: receipt.fileName ?? 'Download Receipt',
+        mimeType: 'application/pdf',
+        UTI: 'com.adobe.pdf',
+      });
+    } catch (error) {
+      Alert.alert('Receipt download failed', getBookingErrorMessage(error));
+    }
+  }, [booking?.id, booking?.paymentStatus]);
+
   const stayCard = useMemo(() => {
     if (!booking?.room) return null;
-    const peers = Array.isArray(booking.peers) ? booking.peers : [];
-    const pendingPeerCount = peers.filter((p) => p?.status === 'pending').length;
+    const checkIn = formatDate(booking.checkInDate);
+    const checkOut = formatDate(booking.checkOutDate);
     return {
       roomNo: booking.room.roomNumber,
-      checkIn: formatDate(booking.checkInDate),
-      checkOut: formatDate(booking.checkOutDate),
+      checkIn,
+      checkOut,
+      stayPeriod: `${checkIn} - ${checkOut}`,
       totalDue: booking.totalDue,
-      peerCount: peers.length,
-      pendingPeerCount,
       paymentStatus: booking.paymentStatus,
       bookingStatus: booking.bookingStatus,
-      viewerRole: booking.viewerRole,
-      ownPeerStatus: booking.ownPeerStatus,
     };
   }, [booking]);
+
+  const isPaid = stayCard?.paymentStatus === 'completed';
 
   const stayStatusMessage = useMemo(() => {
     if (!stayCard) return '';
     if (stayCard.bookingStatus === 'confirmed') {
       return 'Booking confirmed.';
-    }
-    if (stayCard.viewerRole === 'peer') {
-      if (stayCard.ownPeerStatus === 'pending') {
-        return 'Invitation pending. Open notifications to accept this stay.';
-      }
-      if (stayCard.ownPeerStatus === 'accepted') {
-        return 'You accepted. Waiting for other peers to approve.';
-      }
-      if (stayCard.ownPeerStatus === 'rejected') {
-        return 'You rejected this invitation.';
-      }
-    }
-    if (stayCard.pendingPeerCount > 0) {
-      return `Waiting for peer approval (${stayCard.pendingPeerCount} ${
-        stayCard.pendingPeerCount === 1 ? 'peer' : 'peers'
-      } pending).`;
     }
     return 'Booking is in pending state.';
   }, [stayCard]);
@@ -203,22 +258,24 @@ export default function StudentHomeScreen() {
               icon="wallet-outline"
               title="Finance"
               value={`Rs. ${Number(stayCard?.totalDue ?? 0).toLocaleString()}`}
-              subtitle={`Payment ${stayCard?.paymentStatus ?? 'pending'}`}
-              action="Pay Now"
-              onPress={goExpenses}
+              subtitle={`Payment ${isPaid ? 'Paid' : stayCard?.paymentStatus ?? 'history available'}`}
+              action="Download Receipt"
+              onPress={handleDownloadReceipt}
+              actionStyle={styles.quickBtnPaid}
+              actionTextStyle={styles.quickBtnPaidText}
             />
             <QuickCard
               icon="construct-outline"
               title="Maintenance"
-              value={stayCard ? '1 Active' : 'No Issues'}
-              subtitle="Water Tap Repair"
+              value="0"
+              subtitle="No Issues"
               action="Issue History"
               onPress={goSupport}
             />
             <QuickCard
               icon="calendar-outline"
               title="My Stay"
-              value={stayCard?.checkOut ?? '--'}
+              value={stayCard?.stayPeriod ?? '--'}
               subtitle={`Status: ${stayCard?.bookingStatus ?? 'pending'}`}
               action="Extend Stay"
               onPress={goBooking}
@@ -226,7 +283,7 @@ export default function StudentHomeScreen() {
             <QuickCard
               icon="people-outline"
               title="Visitor Log"
-              value={`${(stayCard?.peerCount ?? 0) + (stayCard ? 1 : 0)} Person(s)`}
+              value="0 Person"
               subtitle="Visited Per Stay"
               action="History"
               onPress={goSupport}
@@ -254,15 +311,24 @@ export default function StudentHomeScreen() {
   );
 }
 
-function QuickCard({ icon, title, value, subtitle, action, onPress }) {
+function QuickCard({
+  icon,
+  title,
+  value,
+  subtitle,
+  action,
+  onPress,
+  actionStyle,
+  actionTextStyle,
+}) {
   return (
     <View style={styles.quickCard}>
       <Ionicons name={icon} size={22} color={COLORS.primary} />
       <Text style={styles.quickTitle}>{title}</Text>
       <Text style={styles.quickValue}>{value}</Text>
       <Text style={styles.quickSub}>{subtitle}</Text>
-      <Pressable style={styles.quickBtn} onPress={onPress}>
-        <Text style={styles.quickBtnText}>{action}</Text>
+      <Pressable style={[styles.quickBtn, actionStyle]} onPress={onPress}>
+        <Text style={[styles.quickBtnText, actionTextStyle]}>{action}</Text>
       </Pressable>
     </View>
   );
@@ -432,6 +498,13 @@ const styles = StyleSheet.create({
   quickBtnText: {
     fontFamily: 'PublicSans_600SemiBold',
     color: '#337EC4',
+  },
+  quickBtnPaid: {
+    backgroundColor: '#22C55E',
+    borderColor: '#22C55E',
+  },
+  quickBtnPaidText: {
+    color: '#FFFFFF',
   },
   annHeading: {
     fontFamily: 'PublicSans_700Bold',

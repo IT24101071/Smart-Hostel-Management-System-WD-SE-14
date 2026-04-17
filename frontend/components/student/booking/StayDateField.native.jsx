@@ -18,7 +18,13 @@ function toStartOfDay(date) {
   return normalized;
 }
 
-export default function StayDateField({ label, value, minimumDate, onSelectDate }) {
+export default function StayDateField({
+  label,
+  value,
+  minimumDate,
+  onSelectDate,
+  disabled = false,
+}) {
   const [showPicker, setShowPicker] = useState(false);
 
   function onChange(event, selectedDate) {
@@ -30,7 +36,14 @@ export default function StayDateField({ label, value, minimumDate, onSelectDate 
   return (
     <View style={styles.fieldGroup}>
       <Text style={styles.label}>{label}</Text>
-      <Pressable style={styles.inputWrap} onPress={() => setShowPicker(true)}>
+      <Pressable
+        style={[styles.inputWrap, disabled && styles.inputWrapDisabled]}
+        onPress={() => {
+          if (disabled) return;
+          setShowPicker(true);
+        }}
+        disabled={disabled}
+      >
         <Text style={[styles.input, !value && styles.placeholderText]}>
           {formatDate(value)}
         </Text>
@@ -69,6 +82,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingLeft: 12,
+  },
+  inputWrapDisabled: {
+    opacity: 0.55,
   },
   input: {
     flex: 1,

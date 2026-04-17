@@ -103,7 +103,7 @@ export default function LandingScreen() {
 const styles = StyleSheet.create({
   screenRoot: {
     flex: 1,
-    backgroundColor: LANDING.pageBg,
+    backgroundColor: '#C8DAEA',
   },
   scroll: {
     flex: 1,

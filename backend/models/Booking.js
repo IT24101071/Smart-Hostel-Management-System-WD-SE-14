@@ -1,23 +1,5 @@
 import mongoose from "mongoose";
 
-const peerSchema = new mongoose.Schema(
-  {
-    contact: { type: String, required: true, trim: true, lowercase: true },
-    user: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
-    status: {
-      type: String,
-      enum: ["pending", "accepted", "rejected"],
-      default: "pending",
-    },
-    respondedAt: { type: Date, default: undefined },
-  },
-  { _id: false },
-);
-
 const receiptSchema = new mongoose.Schema(
   {
     uri: { type: String, trim: true },
@@ -48,13 +30,7 @@ const bookingSchema = new mongoose.Schema(
     roomFees: { type: Number, required: true, min: 0 },
     securityDeposit: { type: Number, required: true, min: 0 },
     totalDue: { type: Number, required: true, min: 0 },
-    paymentSplitMode: {
-      type: String,
-      enum: ["single", "split"],
-      default: "single",
-    },
-    amountPaidByBooker: { type: Number, required: true, min: 0, default: 0 },
-    amountPendingFromPeers: { type: Number, required: true, min: 0, default: 0 },
+    amountPaidByBooker: { type: Number, required: true, min: 0 },
     paymentMethod: {
       type: String,
       enum: ["card", "bank"],
@@ -67,12 +43,8 @@ const bookingSchema = new mongoose.Schema(
     },
     bookingStatus: {
       type: String,
-      enum: ["pending", "confirmed", "rejected", "cancelled"],
-      default: "pending",
-    },
-    peers: {
-      type: [peerSchema],
-      default: [],
+      enum: ["confirmed", "cancelled"],
+      default: "confirmed",
     },
     receipt: {
       type: receiptSchema,

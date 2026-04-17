@@ -35,7 +35,13 @@ function toStartOfDay(date) {
   return normalized;
 }
 
-export default function StayDateField({ label, value, minimumDate, onSelectDate }) {
+export default function StayDateField({
+  label,
+  value,
+  minimumDate,
+  onSelectDate,
+  disabled = false,
+}) {
   const [text, setText] = useState(() => formatDate(value));
 
   useEffect(() => {
@@ -70,6 +76,7 @@ export default function StayDateField({ label, value, minimumDate, onSelectDate 
           placeholderTextColor="#9CA3AF"
           style={styles.input}
           autoCapitalize="none"
+          editable={!disabled}
         />
         <View style={styles.iconWrap} accessibilityLabel={`${label} calendar`}>
           <Ionicons name="calendar-outline" size={20} color={COLORS.textSecondary} />
