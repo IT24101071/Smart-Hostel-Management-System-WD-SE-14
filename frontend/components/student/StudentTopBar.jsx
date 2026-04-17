@@ -10,6 +10,7 @@ export default function StudentTopBar({
   profileImage,
   onLogout,
   onNotificationPress,
+  notificationCount = 0,
 }) {
   function handleBell() {
     if (onNotificationPress) {
@@ -56,6 +57,13 @@ export default function StudentTopBar({
             size={22}
             color={COLORS.textSecondary}
           />
+          {notificationCount > 0 ? (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>
+                {notificationCount > 99 ? '99+' : notificationCount}
+              </Text>
+            </View>
+          ) : null}
         </Pressable>
         <Pressable
           style={styles.logoutBtn}
@@ -128,6 +136,25 @@ const styles = StyleSheet.create({
   },
   iconBtn: {
     padding: 6,
+    position: 'relative',
+  },
+  badge: {
+    position: 'absolute',
+    top: 1,
+    right: -1,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    paddingHorizontal: 4,
+    backgroundColor: COLORS.maintenance,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeText: {
+    fontFamily: 'PublicSans_700Bold',
+    color: COLORS.white,
+    fontSize: 10,
+    lineHeight: 12,
   },
   logoutBtn: {
     backgroundColor: COLORS.primary,

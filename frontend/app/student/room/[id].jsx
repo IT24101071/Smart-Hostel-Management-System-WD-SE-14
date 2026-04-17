@@ -1,7 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -16,15 +15,30 @@ import { LANDING } from '../../../components/landing/landingTheme';
 import PeerInviteCard from '../../../components/student/room/PeerInviteCard';
 import RoomImageCarousel from '../../../components/student/room/RoomImageCarousel';
 import { COLORS } from '../../../constants/colors';
+import {
+  createPeerInvite,
+} from '../../../services/peerInvite.service';
 import { getRoomById, getRoomErrorMessage } from '../../../services/room.service';
-
-const accountSource = require('../../../assets/icons/account.svg');
-const TAB_BAR_HEIGHT = 58;
 
 function useRoomIdParam() {
   const { id } = useLocalSearchParams();
   if (Array.isArray(id)) return id[0] ?? '';
   return id ?? '';
+}
+
+function normalizeRoomType(value) {
+  return String(value ?? '')
+    .trim()
+    .toLowerCase();
+}
+
+/** Double/Triple rooms with more than one bed — show peer invite UI. */
+function shouldShowPeerInvite(room) {
+  if (!room) return false;
+  const t = normalizeRoomType(room.roomType);
+  const cap = Number(room.capacity);
+  if (!Number.isFinite(cap) || cap <= 1) return false;
+  return t === 'double' || t === 'triple';
 }
 
 export default function StudentRoomDetailScreen() {
@@ -34,6 +48,15 @@ export default function StudentRoomDetailScreen() {
   const [room, setRoom] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [peerInviteSent, setPeerInviteSent] = useState(false);
+  const [peerContacts, setPeerContacts] = useState([]);
+  const [peerInviteId, setPeerInviteId] = useState('');
+
+  useEffect(() => {
+    setPeerInviteSent(false);
+    setPeerContacts([]);
+    setPeerInviteId('');
+  }, [roomId]);
 
   useEffect(() => {
     if (!roomId) {
@@ -77,30 +100,42 @@ export default function StudentRoomDetailScreen() {
     }
   }, [room]);
 
+  const peerInviteRequired = useMemo(
+    () => shouldShowPeerInvite(room),
+    [room],
+  );
+
+  const expectedPeerCount = useMemo(
+    () => Math.max(Number(room?.capacity ?? 1) - 1, 0),
+    [room],
+  );
+
+  const hasExpectedPeers = !peerInviteRequired || peerContacts.length === expectedPeerCount;
+
+  const confirmBookingDisabled =
+    (peerInviteRequired && !peerInviteSent) || !hasExpectedPeers;
+
+  const handlePeerInviteSent = useCallback(
+    async (contacts) => {
+      if (!roomId) throw new Error('Missing room ID');
+      const result = await createPeerInvite({
+        roomId,
+        peers: contacts,
+      });
+      setPeerInviteId(String(result?.id ?? ''));
+      setPeerInviteSent(true);
+    },
+    [roomId],
+  );
+
   const confirmBooking = useCallback(() => {
-    const q = roomId ? `?roomId=${encodeURIComponent(roomId)}` : '';
-    router.push(`/student/booking${q}`);
-  }, [router, roomId]);
-
-  const goHome = useCallback(() => {
-    router.push('/student');
-  }, [router]);
-
-  const goBookingTab = useCallback(() => {
-    router.push('/student/booking');
-  }, [router]);
-
-  const goExpenses = useCallback(() => {
-    router.push('/student/expenses');
-  }, [router]);
-
-  const goSupport = useCallback(() => {
-    router.push('/student/support');
-  }, [router]);
-
-  const goProfile = useCallback(() => {
-    router.push('/student/profile');
-  }, [router]);
+    if (confirmBookingDisabled) return;
+    const q = new URLSearchParams();
+    if (roomId) q.set('roomId', roomId);
+    if (peerContacts.length) q.set('peers', JSON.stringify(peerContacts));
+    if (peerInviteId) q.set('peerInviteId', peerInviteId);
+    router.push(`/student/booking?${q.toString()}`);
+  }, [confirmBookingDisabled, router, roomId, peerContacts, peerInviteId]);
 
   return (
     <View style={styles.root}>
@@ -146,7 +181,7 @@ export default function StudentRoomDetailScreen() {
           style={styles.scroll}
           contentContainerStyle={[
             styles.scrollContent,
-            { paddingBottom: 24 + TAB_BAR_HEIGHT + insets.bottom },
+            { paddingBottom: 24 + insets.bottom },
           ]}
           showsVerticalScrollIndicator={false}
         >
@@ -175,9 +210,15 @@ export default function StudentRoomDetailScreen() {
               ))}
             </View>
 
-            <View style={styles.peerWrap}>
-              <PeerInviteCard />
-            </View>
+            {shouldShowPeerInvite(room) ? (
+              <View style={styles.peerWrap}>
+                <PeerInviteCard
+                  capacity={room.capacity}
+                  onInviteSent={handlePeerInviteSent}
+                  onPeersChange={setPeerContacts}
+                />
+              </View>
+            ) : null}
 
             <Text style={styles.sectionHeading}>About This Space</Text>
             <Text style={styles.aboutBody}>
@@ -185,43 +226,30 @@ export default function StudentRoomDetailScreen() {
                 'No description has been added for this room yet.'}
             </Text>
 
-            <Pressable style={styles.confirmBtn} onPress={confirmBooking}>
+            <Pressable
+              style={[
+                styles.confirmBtn,
+                confirmBookingDisabled && styles.confirmBtnDisabled,
+              ]}
+              onPress={confirmBooking}
+              disabled={confirmBookingDisabled}
+              accessibilityState={{ disabled: confirmBookingDisabled }}
+              accessibilityHint={
+                confirmBookingDisabled
+                  ? !hasExpectedPeers
+                    ? `Enter ${expectedPeerCount} peer contact(s) before continuing.`
+                    : !peerInviteSent
+                      ? 'Send a peer invite using Send Invite below, then try again.'
+                      : undefined
+                  : undefined
+              }
+            >
               <Text style={styles.confirmText}>Confirm Booking</Text>
             </Pressable>
           </View>
         </ScrollView>
       )}
 
-      <View style={[styles.tabBar, { paddingBottom: Math.max(insets.bottom, 6) }]}>
-        <Pressable style={styles.tabItem} onPress={goHome}>
-          <Ionicons name="home-outline" size={22} color={COLORS.textMuted} />
-          <Text style={styles.tabLabel}>Home</Text>
-        </Pressable>
-
-        <Pressable style={styles.tabItem} onPress={goBookingTab}>
-          <Ionicons name="calendar-outline" size={22} color={COLORS.primary} />
-          <Text style={[styles.tabLabel, styles.tabLabelActive]}>Booking</Text>
-        </Pressable>
-
-        <Pressable style={styles.tabItem} onPress={goExpenses}>
-          <Ionicons name="cash-outline" size={22} color={COLORS.textMuted} />
-          <Text style={styles.tabLabel}>Expenses</Text>
-        </Pressable>
-
-        <Pressable style={styles.tabItem} onPress={goSupport}>
-          <Ionicons name="chatbubble-outline" size={22} color={COLORS.textMuted} />
-          <Text style={styles.tabLabel}>Support</Text>
-        </Pressable>
-
-        <Pressable style={styles.tabItem} onPress={goProfile}>
-          <Image
-            source={accountSource}
-            style={[styles.profileIcon, { opacity: 0.55 }]}
-            contentFit="contain"
-          />
-          <Text style={styles.tabLabel}>Profile</Text>
-        </Pressable>
-      </View>
     </View>
   );
 }
@@ -326,6 +354,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
+  confirmBtnDisabled: {
+    opacity: 0.5,
+  },
   confirmText: {
     fontFamily: 'PublicSans_600SemiBold',
     fontSize: 16,
@@ -360,37 +391,5 @@ const styles = StyleSheet.create({
     fontFamily: 'PublicSans_600SemiBold',
     fontSize: 15,
     color: LANDING.accent,
-  },
-  tabBar: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    minHeight: TAB_BAR_HEIGHT,
-    backgroundColor: COLORS.white,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: COLORS.border,
-    paddingTop: 6,
-    paddingHorizontal: 4,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  tabItem: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 2,
-  },
-  tabLabel: {
-    fontFamily: 'PublicSans_500Medium',
-    fontSize: 10,
-    color: COLORS.textMuted,
-  },
-  tabLabelActive: {
-    color: COLORS.primary,
-  },
-  profileIcon: {
-    width: 22,
-    height: 22,
   },
 });

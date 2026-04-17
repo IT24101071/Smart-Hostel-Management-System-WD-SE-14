@@ -29,6 +29,13 @@ const TYPE_FILTERS = [
   { value: 'Triple', label: 'Triple' },
 ];
 
+const AVAILABILITY_FILTERS = [
+  { value: null, label: 'All statuses' },
+  { value: 'Available', label: 'Available' },
+  { value: 'Full', label: 'Full' },
+  { value: 'Maintenance', label: 'Maintenance' },
+];
+
 function FilterChip({ label, selected, onPress }) {
   return (
     <Pressable
@@ -52,6 +59,7 @@ export default function StudentAllRoomsScreen() {
   const [error, setError] = useState(null);
   const [bedsFilter, setBedsFilter] = useState(null);
   const [typeFilter, setTypeFilter] = useState(null);
+  const [availabilityFilter, setAvailabilityFilter] = useState(null);
 
   const goRoomDetail = useCallback(
     (roomId) => {
@@ -76,7 +84,6 @@ export default function StudentAllRoomsScreen() {
       try {
         const { rooms: list } = await getRooms({
           limit: 100,
-          availabilityStatus: 'Available',
         });
         if (!cancelled) setRooms(list);
       } catch (e) {
@@ -94,13 +101,20 @@ export default function StudentAllRoomsScreen() {
     return rooms.filter((r) => {
       if (bedsFilter != null && Number(r.capacity) !== bedsFilter) return false;
       if (typeFilter != null && r.roomType !== typeFilter) return false;
+      if (
+        availabilityFilter != null &&
+        r.availabilityStatus !== availabilityFilter
+      ) {
+        return false;
+      }
       return true;
     });
-  }, [rooms, bedsFilter, typeFilter]);
+  }, [rooms, bedsFilter, typeFilter, availabilityFilter]);
 
   const clearFilters = useCallback(() => {
     setBedsFilter(null);
     setTypeFilter(null);
+    setAvailabilityFilter(null);
   }, []);
 
   return (
@@ -180,7 +194,28 @@ export default function StudentAllRoomsScreen() {
                 ))}
               </ScrollView>
 
-              {(bedsFilter != null || typeFilter != null) && (
+              <Text style={[styles.filterGroupLabel, styles.filterGroupSpacer]}>
+                Availability
+              </Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.filterChipsRow}
+                nestedScrollEnabled
+              >
+                {AVAILABILITY_FILTERS.map((opt) => (
+                  <FilterChip
+                    key={String(opt.value)}
+                    label={opt.label}
+                    selected={availabilityFilter === opt.value}
+                    onPress={() => setAvailabilityFilter(opt.value)}
+                  />
+                ))}
+              </ScrollView>
+
+              {(bedsFilter != null ||
+                typeFilter != null ||
+                availabilityFilter != null) && (
                 <Pressable
                   onPress={clearFilters}
                   style={styles.clearFiltersBtn}
