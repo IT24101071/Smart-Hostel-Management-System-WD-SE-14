@@ -4,7 +4,7 @@ import SmartHostelLogo from '../SmartHostelLogo';
 export default function LoginHeader() {
   return (
     <View style={styles.container}>
-      <SmartHostelLogo width={160} height={30} />
+      <SmartHostelLogo width={100} height={100} />
       <Text style={styles.title}>Welcome Back</Text>
       <Text style={styles.subtitle}>Welcome to the future of student living</Text>
     </View>

@@ -4,7 +4,7 @@ import SmartHostelLogo from '../SmartHostelLogo';
 export default function SignupHeader() {
   return (
     <View style={styles.container}>
-      <SmartHostelLogo width={160} height={30} />
+      <SmartHostelLogo width={100} height={100} />
       <Text style={styles.title}>Create Account</Text>
       <Text style={styles.subtitle}>Enter Your Details And Verify Your Status</Text>
     </View>

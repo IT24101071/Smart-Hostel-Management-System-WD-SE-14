@@ -4,6 +4,8 @@ export const COLORS = {
   primaryLight: "#EFF6FF",
 
   background: "#F3F4F6",
+  /** Student app screens (dashboard and future /student/* routes) */
+  studentScreenBackground: "rgba(49, 130, 206, 0.15)",
   white: "#FFFFFF",
   cardBg: "#FFFFFF",
 
