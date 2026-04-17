@@ -1,22 +1,11 @@
 import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { LANDING } from './landingTheme';
-
-function buildTags(room) {
-  const tags = [`${room.capacity} Bed${room.capacity !== 1 ? 's' : ''}`, room.roomType];
-  const desc = room.description?.trim();
-  if (desc) {
-    const line = desc.split('\n')[0];
-    tags.push(line.length > 18 ? `${line.slice(0, 18)}…` : line);
-  } else {
-    tags.push('Wi‑Fi');
-  }
-  return tags.slice(0, 3);
-}
+import { buildRoomTags } from './roomTags';
 
 export default function LandingRoomCard({ room, onBookNow }) {
   const cover = room.images?.[0];
-  const tags = buildTags(room);
+  const tags = buildRoomTags(room);
 
   return (
     <View style={styles.card}>

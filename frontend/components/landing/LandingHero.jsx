@@ -6,26 +6,38 @@ const heroSource = require('../../assets/images/landing-hero.svg');
 
 export default function LandingHero({ onReserve }) {
   return (
-    <View style={styles.wrap}>
-      <Image
-        source={heroSource}
-        style={styles.image}
-        contentFit="cover"
-        transition={200}
-      />
-      <View style={styles.overlay}>
-        <Text style={styles.title}>Experience Smart Living</Text>
-        <Pressable style={styles.cta} onPress={onReserve}>
-          <Text style={styles.ctaText}>Reserve Your Room</Text>
-        </Pressable>
+    <View style={styles.shadowWrap}>
+      <View style={styles.card}>
+        <Image
+          source={heroSource}
+          style={styles.image}
+          contentFit="cover"
+          transition={200}
+        />
+        <View style={styles.overlay}>
+          <Text style={styles.title}>Experience Smart Living</Text>
+          <Pressable style={styles.cta} onPress={onReserve}>
+            <Text style={styles.ctaText}>Reserve Your Room</Text>
+          </Pressable>
+        </View>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: {
+  /** Shadow lives outside the clipped card so iOS does not clip it; width matches the hero image/card. */
+  shadowWrap: {
     margin: 20,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 5,
+  },
+  card: {
     height: 280,
     borderRadius: 20,
     overflow: 'hidden',

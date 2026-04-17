@@ -1,20 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Tabs } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { COLORS } from '../../../constants/colors';
 
 const accountSource = require('../../../assets/icons/account.svg');
 
 const ICON_SIZE = 24;
-
-function TabIconWrap({ focused, children }) {
-  return (
-    <View style={[styles.iconBubble, focused && styles.iconBubbleActive]}>
-      {children}
-    </View>
-  );
-}
 
 export default function StudentTabsLayout() {
   return (
@@ -31,14 +23,8 @@ export default function StudentTabsLayout() {
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ focused }) => (
-            <TabIconWrap focused={focused}>
-              <Ionicons
-                name="home-outline"
-                size={ICON_SIZE}
-                color={focused ? COLORS.primary : COLORS.textMuted}
-              />
-            </TabIconWrap>
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="home-outline" size={size ?? ICON_SIZE} color={color} />
           ),
         }}
       />
@@ -46,14 +32,12 @@ export default function StudentTabsLayout() {
         name="booking"
         options={{
           title: 'Booking',
-          tabBarIcon: ({ focused }) => (
-            <TabIconWrap focused={focused}>
-              <Ionicons
-                name="calendar-outline"
-                size={ICON_SIZE}
-                color={focused ? COLORS.primary : COLORS.textMuted}
-              />
-            </TabIconWrap>
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons
+              name="calendar-outline"
+              size={size ?? ICON_SIZE}
+              color={color}
+            />
           ),
         }}
       />
@@ -61,14 +45,8 @@ export default function StudentTabsLayout() {
         name="expenses"
         options={{
           title: 'Expenses',
-          tabBarIcon: ({ focused }) => (
-            <TabIconWrap focused={focused}>
-              <Ionicons
-                name="cash-outline"
-                size={ICON_SIZE}
-                color={focused ? COLORS.primary : COLORS.textMuted}
-              />
-            </TabIconWrap>
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="cash-outline" size={size ?? ICON_SIZE} color={color} />
           ),
         }}
       />
@@ -76,14 +54,12 @@ export default function StudentTabsLayout() {
         name="support"
         options={{
           title: 'Support',
-          tabBarIcon: ({ focused }) => (
-            <TabIconWrap focused={focused}>
-              <Ionicons
-                name="chatbubble-outline"
-                size={ICON_SIZE}
-                color={focused ? COLORS.primary : COLORS.textMuted}
-              />
-            </TabIconWrap>
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons
+              name="chatbubble-outline"
+              size={size ?? ICON_SIZE}
+              color={color}
+            />
           ),
         }}
       />
@@ -92,16 +68,11 @@ export default function StudentTabsLayout() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ focused }) => (
-            <TabIconWrap focused={focused}>
-              <Image
-                source={accountSource}
-                style={[
-                  styles.profileIcon,
-                  { opacity: focused ? 1 : 0.65 },
-                ]}
-                contentFit="contain"
-              />
-            </TabIconWrap>
+            <Image
+              source={accountSource}
+              style={[styles.profileIcon, { opacity: focused ? 1 : 0.55 }]}
+              contentFit="contain"
+            />
           ),
         }}
       />
@@ -120,16 +91,6 @@ const styles = StyleSheet.create({
     fontFamily: 'PublicSans_500Medium',
     fontSize: 10,
     marginBottom: 2,
-  },
-  iconBubble: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 22,
-  },
-  iconBubbleActive: {
-    backgroundColor: COLORS.primaryLight,
   },
   profileIcon: {
     width: ICON_SIZE,

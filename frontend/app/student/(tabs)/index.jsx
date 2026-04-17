@@ -30,6 +30,17 @@ export default function StudentHomeScreen() {
     router.push('/student/booking');
   }, [router]);
 
+  const goRoomDetail = useCallback(
+    (roomId) => {
+      router.push(`/student/room/${roomId}`);
+    },
+    [router],
+  );
+
+  const goAllRooms = useCallback(() => {
+    router.push('/student/rooms');
+  }, [router]);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -48,7 +59,7 @@ export default function StudentHomeScreen() {
       setRoomsError(null);
       try {
         const { rooms: list } = await getRooms({
-          limit: 100,
+          limit: 3,
           availabilityStatus: 'Available',
         });
         if (!cancelled) setRooms(list);
@@ -104,13 +115,13 @@ export default function StudentHomeScreen() {
               <LandingRoomCard
                 key={room.id}
                 room={room}
-                onBookNow={goBooking}
+                onBookNow={() => goRoomDetail(room.id)}
               />
             ))
           )}
 
           {!loading && (
-            <Pressable style={styles.seeMore} onPress={goBooking}>
+            <Pressable style={styles.seeMore} onPress={goAllRooms}>
               <Text style={styles.seeMoreText}>See more…</Text>
             </Pressable>
           )}

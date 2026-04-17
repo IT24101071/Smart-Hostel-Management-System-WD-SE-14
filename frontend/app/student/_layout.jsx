@@ -1,4 +1,4 @@
-import { Redirect, Slot } from 'expo-router';
+import { Redirect, Stack } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { COLORS } from '../../constants/colors';
@@ -42,7 +42,15 @@ export default function StudentLayout() {
 
   return (
     <View style={styles.root}>
-      <Slot />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: {
+            flex: 1,
+            backgroundColor: COLORS.studentScreenBackground,
+          },
+        }}
+      />
     </View>
   );
 }
