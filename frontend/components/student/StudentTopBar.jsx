@@ -7,6 +7,7 @@ const accountSource = require('../../assets/icons/account.svg');
 
 export default function StudentTopBar({
   userName,
+  profileImage,
   onLogout,
   onNotificationPress,
 }) {
@@ -21,11 +22,21 @@ export default function StudentTopBar({
   return (
     <View style={styles.bar}>
       <View style={styles.left}>
-        <Image
-          source={accountSource}
-          style={styles.avatar}
-          contentFit="contain"
-        />
+        <View style={styles.avatarFrame}>
+          {profileImage ? (
+            <Image
+              source={{ uri: profileImage }}
+              style={styles.avatar}
+              contentFit="cover"
+            />
+          ) : (
+            <Image
+              source={accountSource}
+              style={styles.avatar}
+              contentFit="contain"
+            />
+          )}
+        </View>
         <View style={styles.titles}>
           <Text style={styles.welcome} numberOfLines={1}>
             Welcome, {userName || 'Student'}
@@ -81,10 +92,18 @@ const styles = StyleSheet.create({
     marginRight: 8,
     gap: 12,
   },
-  avatar: {
+  avatarFrame: {
     width: 44,
     height: 44,
     borderRadius: 22,
+    overflow: 'hidden',
+    backgroundColor: COLORS.inputBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatar: {
+    width: '100%',
+    height: '100%',
   },
   titles: {
     flex: 1,

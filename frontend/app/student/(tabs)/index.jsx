@@ -16,6 +16,7 @@ import LandingRoomCard from '../../../components/landing/LandingRoomCard';
 import { LANDING } from '../../../components/landing/landingTheme';
 import StudentTopBar from '../../../components/student/StudentTopBar';
 import { COLORS } from '../../../constants/colors';
+import apiClient from '../../../lib/axios';
 import { storage } from '../../../lib/storage';
 import { getRooms, getRoomErrorMessage } from '../../../services/room.service';
 
@@ -46,6 +47,19 @@ export default function StudentHomeScreen() {
     (async () => {
       const userData = await storage.getUser();
       if (!cancelled) setUser(userData);
+
+      // Login payload does not include profileImage; refresh full profile when needed.
+      if (!userData?.profileImage) {
+        try {
+          const { data: me } = await apiClient.get('/auth/me');
+          if (!cancelled && me) {
+            setUser(me);
+            await storage.setUser(me);
+          }
+        } catch (e) {
+          console.error('[StudentHome] Failed to refresh profile:', e);
+        }
+      }
     })();
     return () => {
       cancelled = true;
@@ -86,7 +100,11 @@ export default function StudentHomeScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <StudentTopBar userName={user?.name} onLogout={handleLogout} />
+        <StudentTopBar
+          userName={user?.name}
+          profileImage={user?.profileImage}
+          onLogout={handleLogout}
+        />
         <LandingHero onReserve={goBooking} />
         <LandingFeatureGrid />
 
