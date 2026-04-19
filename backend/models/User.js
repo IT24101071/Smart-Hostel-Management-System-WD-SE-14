@@ -12,6 +12,11 @@ const userSchema = new mongoose.Schema(
     },
     isApproved: { type: Boolean, default: false },
 
+    gender: {
+      type: String,
+      enum: ["male", "female"],
+    },
+
     // student specific fields
     studentId: { type: String },
     year: { type: Number },

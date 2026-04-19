@@ -4,6 +4,8 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { uploadBufferToR2 } from "../utils/r2Upload.js";
 
+const GENDERS = ["male", "female"];
+
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "7d" });
 };
@@ -20,6 +22,7 @@ export const register = async (req, res) => {
       contactNo,
       guardianName,
       guardianContact,
+      gender,
     } = req.body;
 
     if (!name || !email || !password) {
@@ -31,6 +34,12 @@ export const register = async (req, res) => {
     const existing = await User.findOne({ email });
     if (existing) {
       return res.status(400).json({ message: "Email already registered" });
+    }
+
+    if (!gender || !GENDERS.includes(gender)) {
+      return res
+        .status(400)
+        .json({ message: "gender is required and must be male or female" });
     }
 
     //files go to R2
@@ -63,6 +72,7 @@ export const register = async (req, res) => {
       password: hashed,
       role: "student",
       isApproved: false,
+      gender,
       studentId,
       year,
       semester,
@@ -115,6 +125,7 @@ export const login = async (req, res) => {
         email: user.email,
         role: user.role,
         isApproved: user.isApproved,
+        gender: user.gender,
       },
     });
   } catch (error) {
@@ -295,6 +306,7 @@ export const updateUser = async (req, res) => {
       contactNo,
       guardianName,
       guardianContact,
+      gender,
     } = req.body;
 
     const target = await User.findById(req.params.id).select("+password");
@@ -321,6 +333,13 @@ export const updateUser = async (req, res) => {
     if (contactNo !== undefined) target.contactNo = contactNo;
     if (guardianName !== undefined) target.guardianName = guardianName;
     if (guardianContact !== undefined) target.guardianContact = guardianContact;
+
+    if (gender !== undefined) {
+      if (!GENDERS.includes(gender)) {
+        return res.status(400).json({ message: "gender must be male or female" });
+      }
+      target.gender = gender;
+    }
 
     if (password && String(password).trim() !== "") {
       target.password = await bcrypt.hash(password, 10);

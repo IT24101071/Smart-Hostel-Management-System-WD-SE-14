@@ -88,14 +88,27 @@ export async function getRooms(params = { limit: 100 }) {
   if (params.roomType) q.set("roomType", params.roomType);
   if (params.availabilityStatus)
     q.set("availabilityStatus", params.availabilityStatus);
+  if (params.gender) q.set("gender", params.gender);
   const qs = q.toString();
   const path = qs ? `/rooms?${qs}` : "/rooms";
 
   const data = await fetchApi(path, { method: "GET" });
 
+  let raw = data?.data;
+  if (raw === undefined && Array.isArray(data)) {
+    raw = data;
+  }
+  if (!Array.isArray(raw)) {
+    console.warn(
+      "[room.service] getRooms: expected { data: Room[] } from /api/rooms. Got unexpected body — check API_BASE_URL and that the backend is running.",
+      typeof raw,
+    );
+    raw = [];
+  }
+
   return {
-    rooms: data.data.map(mapRoom),
-    pagination: data.pagination,
+    rooms: raw.map(mapRoom),
+    pagination: data?.pagination,
   };
 }
 
@@ -112,6 +125,7 @@ export async function createRoom(values) {
       {
         roomNumber: values.roomNumber.trim(),
         roomType: values.roomType,
+        gender: values.gender,
         pricePerMonth: String(Number(values.pricePerMonth)),
         capacity: String(values.capacity),
         description: values.description.trim(),
@@ -127,6 +141,7 @@ export async function createRoom(values) {
     body: {
       roomNumber: values.roomNumber.trim(),
       roomType: values.roomType,
+      gender: values.gender,
       pricePerMonth: Number(values.pricePerMonth),
       capacity: values.capacity,
       description: values.description.trim(),
@@ -146,6 +161,7 @@ export async function updateRoom(id, values) {
   const form = await buildFormData(
     {
       roomType: values.roomType,
+      gender: values.gender,
       pricePerMonth: String(Number(values.pricePerMonth)),
       capacity: String(values.capacity),
       description: values.description.trim(),

@@ -3,6 +3,7 @@ import { uploadMultipleToR2 } from "../utils/r2Upload.js";
 
 const ROOM_TYPES = ["Single", "Double", "Triple"];
 const AVAILABILITY_TYPES = ["Available", "Full", "Maintenance"];
+const GENDERS = ["male", "female"];
 
 const toPositiveNumber = (value) => {
   if (value === undefined || value === null || value === "") return null;
@@ -24,11 +25,17 @@ export const createRoom = async (req, res) => {
     );
     console.log("[createRoom] Request body:", req.body);
 
-    const { roomNumber, roomType, pricePerMonth, capacity, description } =
+    const { roomNumber, roomType, pricePerMonth, capacity, description, gender } =
       req.body;
 
     if (!roomNumber) {
       return res.status(400).json({ message: "roomNumber is required" });
+    }
+
+    if (!gender || !GENDERS.includes(gender)) {
+      return res
+        .status(400)
+        .json({ message: "gender is required and must be male or female" });
     }
 
     if (!ROOM_TYPES.includes(roomType)) {
@@ -62,6 +69,7 @@ export const createRoom = async (req, res) => {
     const room = await Room.create({
       roomNumber,
       roomType,
+      gender,
       pricePerMonth: parsedPrice,
       capacity: parsedCapacity,
       currentOccupancy: 0,
@@ -81,9 +89,21 @@ export const createRoom = async (req, res) => {
 
 export const getRooms = async (req, res) => {
   try {
-    const { roomType, availabilityStatus, page = 1, limit = 10 } = req.query;
+    const {
+      roomType,
+      availabilityStatus,
+      gender,
+      page = 1,
+      limit = 10,
+    } = req.query;
 
     const filter = {};
+    if (gender) {
+      if (!GENDERS.includes(gender)) {
+        return res.status(400).json({ message: "Invalid gender filter" });
+      }
+      filter.gender = gender;
+    }
     if (roomType) {
       if (!ROOM_TYPES.includes(roomType)) {
         return res.status(400).json({ message: "Invalid roomType filter" });
@@ -150,9 +170,17 @@ export const updateRoom = async (req, res) => {
       description,
       roomType,
       availabilityStatus,
+      gender,
       imageAction = "append",
       keptImageUrls: keptImageUrlsRaw,
     } = req.body;
+
+    if (gender !== undefined) {
+      if (!GENDERS.includes(gender)) {
+        return res.status(400).json({ message: "Invalid gender" });
+      }
+      room.gender = gender;
+    }
 
     if (pricePerMonth !== undefined) {
       const parsedPrice = toPositiveNumber(pricePerMonth);

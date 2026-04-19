@@ -13,7 +13,12 @@ import {
   View,
 } from "react-native";
 import { COLORS } from "../../constants/colors";
-import { AVAILABILITY_STATUSES, ROOM_TYPES } from "../../types/room";
+import {
+  AVAILABILITY_STATUSES,
+  ROOM_GENDER_LABELS,
+  ROOM_GENDERS,
+  ROOM_TYPES,
+} from "../../types/room";
 
 const MAX_IMAGES = 5;
 
@@ -36,6 +41,7 @@ const STATUS_CONFIG = {
 const DEFAULT_VALUES = {
   roomNumber: "",
   roomType: "Single",
+  gender: "male",
   pricePerMonth: "",
   capacity: 1,
   description: "",
@@ -54,6 +60,7 @@ export default function RoomForm({
 
   const [roomNumber, setRoomNumber] = useState(seed.roomNumber);
   const [roomType, setRoomType] = useState(seed.roomType);
+  const [gender, setGender] = useState(seed.gender ?? "male");
   const [pricePerMonth, setPricePerMonth] = useState(seed.pricePerMonth);
   const [capacity, setCapacity] = useState(seed.capacity);
   const [description, setDescription] = useState(seed.description);
@@ -129,6 +136,7 @@ export default function RoomForm({
     onSubmit({
       roomNumber,
       roomType,
+      gender,
       pricePerMonth,
       capacity,
       description,
@@ -180,6 +188,36 @@ export default function RoomForm({
               </Pressable>
             ))}
           </View>
+        </View>
+
+        <View style={styles.fieldGroup}>
+          <Text style={styles.fieldLabel}>
+            Gender <Text style={styles.required}>*</Text>
+          </Text>
+          <View style={styles.segmentedControl}>
+            {ROOM_GENDERS.map((g) => (
+              <Pressable
+                key={g}
+                style={[
+                  styles.segmentItem,
+                  gender === g && styles.segmentItemActive,
+                ]}
+                onPress={() => setGender(g)}
+              >
+                <Text
+                  style={[
+                    styles.segmentText,
+                    gender === g && styles.segmentTextActive,
+                  ]}
+                >
+                  {ROOM_GENDER_LABELS[g]}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          <Text style={styles.fieldHint}>
+            Students must match this category to book this room.
+          </Text>
         </View>
       </SectionCard>
 

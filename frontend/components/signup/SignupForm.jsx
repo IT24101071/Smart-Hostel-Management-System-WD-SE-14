@@ -12,6 +12,10 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import { COLORS } from "../../constants/colors";
 import { register, getAuthErrorMessage } from "../../services/auth.service";
+import {
+  ROOM_GENDERS,
+  ROOM_GENDER_LABELS,
+} from "../../types/room";
 
 const YEARS = ["1", "2", "3", "4"];
 const SEMESTERS = ["1", "2"];
@@ -30,6 +34,8 @@ export default function SignupForm({ onSuccess }) {
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [yearOpen, setYearOpen] = useState(false);
   const [semesterOpen, setSemesterOpen] = useState(false);
+  const [gender, setGender] = useState("male");
+  const [genderOpen, setGenderOpen] = useState(false);
   const [profileImage, setProfileImage] = useState(null);
   const [idCardImage, setIdCardImage] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -80,6 +86,10 @@ export default function SignupForm({ onSuccess }) {
       Alert.alert("Validation", "Please enter your student ID");
       return;
     }
+    if (!ROOM_GENDERS.includes(gender)) {
+      Alert.alert("Validation", "Please select your gender");
+      return;
+    }
     if (!contactNo.trim()) {
       Alert.alert("Validation", "Please enter your contact number");
       return;
@@ -118,6 +128,7 @@ export default function SignupForm({ onSuccess }) {
         studentId,
         year: parseInt(year),
         semester: parseInt(semester),
+        gender,
         contactNo,
         guardianName,
         guardianContact,
@@ -214,7 +225,12 @@ export default function SignupForm({ onSuccess }) {
         </View>
       </FieldGroup>
 
-      <View style={styles.twoColumnRow}>
+      <View
+        style={[
+          styles.twoColumnRow,
+          (yearOpen || semesterOpen) && styles.selectRowDropdownOpen,
+        ]}
+      >
         <View style={styles.column}>
           <Text style={styles.fieldLabel}>Year</Text>
           <Pressable
@@ -222,6 +238,7 @@ export default function SignupForm({ onSuccess }) {
             onPress={() => {
               setYearOpen((v) => !v);
               setSemesterOpen(false);
+              setGenderOpen(false);
             }}
           >
             <Text style={styles.selectValue}>{year}</Text>
@@ -262,6 +279,7 @@ export default function SignupForm({ onSuccess }) {
             onPress={() => {
               setSemesterOpen((v) => !v);
               setYearOpen(false);
+              setGenderOpen(false);
             }}
           >
             <Text style={styles.selectValue}>{semester}</Text>
@@ -294,6 +312,52 @@ export default function SignupForm({ onSuccess }) {
             </View>
           )}
         </View>
+      </View>
+
+      <View
+        style={[
+          styles.genderRow,
+          genderOpen && styles.selectRowDropdownOpen,
+        ]}
+      >
+        <Text style={styles.fieldLabel}>Gender</Text>
+        <Pressable
+          style={styles.selectButtonFull}
+          onPress={() => {
+            setGenderOpen((v) => !v);
+            setYearOpen(false);
+            setSemesterOpen(false);
+          }}
+        >
+          <Text style={styles.selectValue}>{ROOM_GENDER_LABELS[gender]}</Text>
+          <Ionicons name="chevron-down" size={16} color="#9CA3AF" />
+        </Pressable>
+        {genderOpen && (
+          <View style={styles.dropdownFullWidth}>
+            {ROOM_GENDERS.map((g) => (
+              <Pressable
+                key={g}
+                style={[
+                  styles.dropdownItem,
+                  gender === g && styles.dropdownItemActive,
+                ]}
+                onPress={() => {
+                  setGender(g);
+                  setGenderOpen(false);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.dropdownText,
+                    gender === g && styles.dropdownTextActive,
+                  ]}
+                >
+                  {ROOM_GENDER_LABELS[g]}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
       </View>
 
       <FieldGroup label="Contact No">
@@ -530,14 +594,52 @@ const styles = StyleSheet.create({
   twoColumnRow: {
     flexDirection: "row",
     gap: 12,
-    marginBottom: 70,
+    marginBottom: 14,
     position: "relative",
     zIndex: 5,
+  },
+  genderRow: {
+    marginBottom: 14,
+    position: "relative",
+    zIndex: 4,
+  },
+  selectRowDropdownOpen: {
+    marginBottom: 70,
   },
   column: {
     flex: 1,
     position: "relative",
     zIndex: 15,
+  },
+  selectButtonFull: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#F3F4F6",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    paddingHorizontal: 14,
+    height: 46,
+    width: "100%",
+  },
+  dropdownFullWidth: {
+    position: "absolute",
+    top: 70,
+    left: 0,
+    right: 0,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    zIndex: 1000,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 12,
+    minHeight: 60,
+    overflow: "hidden",
   },
   selectButton: {
     flexDirection: "row",

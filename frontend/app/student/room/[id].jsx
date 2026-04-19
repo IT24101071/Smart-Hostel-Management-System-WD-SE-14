@@ -12,8 +12,12 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LANDING } from '../../../components/landing/landingTheme';
+import OccupancyGenderBar from '../../../components/rooms/OccupancyGenderBar';
 import RoomImageCarousel from '../../../components/student/room/RoomImageCarousel';
 import { COLORS } from '../../../constants/colors';
+import apiClient from '../../../lib/axios';
+import { studentMayViewRoom } from '../../../lib/genderRoom';
+import { storage } from '../../../lib/storage';
 import { getRoomById, getRoomErrorMessage } from '../../../services/room.service';
 
 function useRoomIdParam() {
@@ -41,8 +45,26 @@ export default function StudentRoomDetailScreen() {
       setLoading(true);
       setError(null);
       try {
+        try {
+          const { data: me } = await apiClient.get('/auth/me');
+          if (me && !cancelled) await storage.setUser(me);
+        } catch {
+          /* cached user */
+        }
+        const user = await storage.getUser();
+
         const data = await getRoomById(roomId);
-        if (!cancelled) setRoom(data);
+        if (cancelled) return;
+
+        if (!studentMayViewRoom(user, data)) {
+          setRoom(null);
+          setError(
+            'This room is not available for your profile. Browse rooms that match your gender category.',
+          );
+          return;
+        }
+
+        setRoom(data);
       } catch (e) {
         if (!cancelled) setError(getRoomErrorMessage(e));
       } finally {
@@ -151,18 +173,15 @@ export default function StudentRoomDetailScreen() {
               ))}
             </View>
 
+            <OccupancyGenderBar room={room} variant="detail" />
+
             <Text style={styles.sectionHeading}>About This Space</Text>
             <Text style={styles.aboutBody}>
               {room.description?.trim() ||
                 'No description has been added for this room yet.'}
             </Text>
 
-            <Pressable
-              style={[
-                styles.confirmBtn,
-              ]}
-              onPress={confirmBooking}
-            >
+            <Pressable style={styles.confirmBtn} onPress={confirmBooking}>
               <Text style={styles.confirmText}>Confirm Booking</Text>
             </Pressable>
           </View>

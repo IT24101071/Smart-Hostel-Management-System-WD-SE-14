@@ -72,6 +72,7 @@ export async function register(payload) {
   formData.append("contactNo", payload.contactNo);
   formData.append("guardianName", payload.guardianName);
   formData.append("guardianContact", payload.guardianContact);
+  formData.append("gender", payload.gender);
 
   await appendRegisterImage(
     formData,

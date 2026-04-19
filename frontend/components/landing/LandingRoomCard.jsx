@@ -1,5 +1,6 @@
 import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import OccupancyGenderBar from '../rooms/OccupancyGenderBar';
 import { LANDING } from './landingTheme';
 import { buildRoomTags } from './roomTags';
 
@@ -38,6 +39,7 @@ export default function LandingRoomCard({ room, onBookNow }) {
             </View>
           ))}
         </View>
+        <OccupancyGenderBar room={room} variant="landing" />
         <Pressable style={styles.bookBtn} onPress={onBookNow}>
           <Text style={styles.bookText}>Book Now</Text>
         </Pressable>

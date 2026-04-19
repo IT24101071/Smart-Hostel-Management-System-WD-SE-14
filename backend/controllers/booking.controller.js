@@ -1,6 +1,7 @@
 import Booking from "../models/Booking.js";
 import Notification from "../models/Notification.js";
 import Room from "../models/Room.js";
+import User from "../models/User.js";
 
 function parseDateOrNull(value) {
   const d = new Date(value);
@@ -104,6 +105,21 @@ export const createBooking = async (req, res) => {
 
     const room = await Room.findById(roomId);
     if (!room) return res.status(404).json({ message: "Room not found" });
+
+    const student = await User.findById(req.user.id);
+    if (!student) return res.status(404).json({ message: "User not found" });
+    if (!student.gender) {
+      return res.status(400).json({
+        message:
+          "Your profile must include gender before booking. Ask an admin to update your account.",
+      });
+    }
+    const roomGender = room.gender ?? "male";
+    if (student.gender !== roomGender) {
+      return res.status(400).json({
+        message: "This room is not available for your gender category",
+      });
+    }
 
     const checkIn = parseDateOrNull(checkInDate);
     const checkOut = parseDateOrNull(checkOutDate);
