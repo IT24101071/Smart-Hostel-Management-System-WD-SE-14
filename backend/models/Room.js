@@ -13,6 +13,11 @@ const roomSchema = new mongoose.Schema(
       enum: ["Single", "Double", "Triple"],
       required: true,
     },
+    gender: {
+      type: String,
+      enum: ["male", "female"],
+      default: "male",
+    },
     pricePerMonth: {
       type: Number,
       required: true,

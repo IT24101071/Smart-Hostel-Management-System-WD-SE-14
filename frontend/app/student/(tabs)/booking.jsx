@@ -18,6 +18,9 @@ import LegalAgreementCard from '../../../components/student/booking/LegalAgreeme
 import StayDetailsForm from '../../../components/student/booking/StayDetailsForm';
 import { LANDING } from '../../../components/landing/landingTheme';
 import { COLORS } from '../../../constants/colors';
+import apiClient from '../../../lib/axios';
+import { studentMayViewRoom } from '../../../lib/genderRoom';
+import { storage } from '../../../lib/storage';
 import {
   cancelBooking,
   extendBooking,
@@ -48,7 +51,25 @@ export default function StudentBookingScreen() {
       setRoomError('');
       try {
         if (roomIdValue) {
+          try {
+            const { data: me } = await apiClient.get('/auth/me');
+            if (me && !cancelled) await storage.setUser(me);
+          } catch {
+            /* use cached user */
+          }
+          const user = await storage.getUser();
           const data = await getRoomById(roomIdValue);
+          if (cancelled) return;
+          if (!studentMayViewRoom(user, data)) {
+            setRoom(null);
+            setRoomError(
+              'This room is not available for your profile. Choose a room that matches your gender category.',
+            );
+            setConfirmedBooking(null);
+            setCheckInDate(null);
+            setCheckOutDate(null);
+            return;
+          }
           if (!cancelled) {
             setRoom(data);
             setConfirmedBooking(null);

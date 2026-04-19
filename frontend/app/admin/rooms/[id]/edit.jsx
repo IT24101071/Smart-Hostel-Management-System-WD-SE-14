@@ -30,6 +30,7 @@ function roomToFormValues(room) {
   return {
     roomNumber: room.roomNumber,
     roomType: room.roomType,
+    gender: room.gender ?? "male",
     pricePerMonth: String(room.pricePerMonth),
     capacity: room.capacity,
     description: room.description ?? "",

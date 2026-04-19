@@ -1,11 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { COLORS, STATUS_COLORS } from "../../constants/colors";
+import OccupancyGenderBar from "./OccupancyGenderBar";
 
 export default function RoomCard({ room, onView, onEdit, onDelete }) {
   const statusStyle = STATUS_COLORS[room.availabilityStatus];
 
   const coverImage = room.images?.[0];
+  const cap = Number(room.capacity);
+  const multiBed = Number.isFinite(cap) && cap > 1;
 
   return (
     <Pressable style={styles.card} onPress={onView}>
@@ -45,15 +48,25 @@ export default function RoomCard({ room, onView, onEdit, onDelete }) {
         </View>
       </View>
 
-      <View style={styles.infoStrip}>
-        <View style={styles.infoItem}>
-          <Ionicons name="people-outline" size={14} color={COLORS.textMuted} />
-          <Text style={styles.infoText}>
-            {room.currentOccupancy}/{room.capacity} occupied
-          </Text>
+      {multiBed ? (
+        <View style={styles.occupancyBlock}>
+          <OccupancyGenderBar room={room} variant="admin" />
         </View>
-        <View style={styles.infoDivider} />
-        <View style={styles.infoItem}>
+      ) : null}
+
+      <View style={styles.infoStrip}>
+        {!multiBed ? (
+          <>
+            <View style={styles.infoItem}>
+              <Ionicons name="people-outline" size={14} color={COLORS.textMuted} />
+              <Text style={styles.infoText}>
+                {room.currentOccupancy}/{room.capacity} occupied
+              </Text>
+            </View>
+            <View style={styles.infoDivider} />
+          </>
+        ) : null}
+        <View style={[styles.infoItem, multiBed && styles.infoItemGrow]}>
           <Ionicons name="cash-outline" size={14} color={COLORS.textMuted} />
           <Text style={styles.infoText}>
             Rs. {room.pricePerMonth.toLocaleString()}/mo
@@ -154,6 +167,10 @@ const styles = StyleSheet.create({
     fontFamily: "PublicSans_600SemiBold",
     fontSize: 11.5,
   },
+  occupancyBlock: {
+    paddingHorizontal: 16,
+    marginBottom: 4,
+  },
   infoStrip: {
     flexDirection: "row",
     alignItems: "center",
@@ -170,6 +187,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     flex: 1,
+  },
+  infoItemGrow: {
+    flexGrow: 1,
   },
   infoDivider: {
     width: 1,

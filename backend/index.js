@@ -24,7 +24,7 @@ app.use("/api/notifications", notificationRoutes);
 
 app.get("/health", (req, res) => res.send("API is running!"));
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 // Listen on all interfaces so phones/emulators on the LAN can reach the API (not only 127.0.0.1).
 app.listen(PORT, "0.0.0.0", () =>
   console.log(`Server on port ${PORT} (0.0.0.0)`),

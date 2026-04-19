@@ -13,6 +13,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LandingRoomCard from '../../components/landing/LandingRoomCard';
 import { LANDING } from '../../components/landing/landingTheme';
 import { COLORS } from '../../constants/colors';
+import apiClient from '../../lib/axios';
+import { roomGender, studentMayViewRoom } from '../../lib/genderRoom';
+import { storage } from '../../lib/storage';
 import { getRooms, getRoomErrorMessage } from '../../services/room.service';
 
 const BED_FILTERS = [
@@ -52,6 +55,8 @@ export default function StudentAllRoomsScreen() {
   const [error, setError] = useState(null);
   const [bedsFilter, setBedsFilter] = useState(null);
   const [typeFilter, setTypeFilter] = useState(null);
+  /** Resolved after /auth/me: only male/female can browse; null means missing on profile */
+  const [studentGender, setStudentGender] = useState(undefined);
 
   const goRoomDetail = useCallback(
     (roomId) => {
@@ -74,10 +79,31 @@ export default function StudentAllRoomsScreen() {
       setLoading(true);
       setError(null);
       try {
-        const { rooms: list } = await getRooms({
-          limit: 100,
-        });
-        if (!cancelled) setRooms(list);
+        try {
+          const { data: me } = await apiClient.get('/auth/me');
+          if (me && !cancelled) await storage.setUser(me);
+        } catch {
+          /* use cached user if refresh fails */
+        }
+
+        const user = await storage.getUser();
+        const ug =
+          user?.gender === 'male' || user?.gender === 'female'
+            ? user.gender
+            : null;
+
+        if (!cancelled) setStudentGender(ug);
+
+        if (ug == null) {
+          if (!cancelled) setRooms([]);
+        } else {
+          const { rooms: list } = await getRooms({
+            limit: 100,
+            gender: ug,
+          });
+          const safe = list.filter((r) => studentMayViewRoom({ gender: ug }, r));
+          if (!cancelled) setRooms(safe);
+        }
       } catch (e) {
         if (!cancelled) setError(getRoomErrorMessage(e));
       } finally {
@@ -91,11 +117,17 @@ export default function StudentAllRoomsScreen() {
 
   const filteredRooms = useMemo(() => {
     return rooms.filter((r) => {
+      if (
+        studentGender &&
+        roomGender(r) !== studentGender
+      ) {
+        return false;
+      }
       if (bedsFilter != null && Number(r.capacity) !== bedsFilter) return false;
       if (typeFilter != null && r.roomType !== typeFilter) return false;
       return true;
     });
-  }, [rooms, bedsFilter, typeFilter]);
+  }, [rooms, bedsFilter, typeFilter, studentGender]);
 
   const clearFilters = useCallback(() => {
     setBedsFilter(null);
@@ -135,6 +167,14 @@ export default function StudentAllRoomsScreen() {
         ) : error ? (
           <View style={styles.banner}>
             <Text style={styles.bannerText}>{error}</Text>
+          </View>
+        ) : !loading && studentGender === null ? (
+          <View style={styles.banner}>
+            <Text style={styles.bannerText}>
+              Your profile must include gender before you can browse rooms. Ask an
+              administrator to update your account, or sign out and sign in again
+              after your profile is complete.
+            </Text>
           </View>
         ) : rooms.length === 0 ? (
           <Text style={styles.muted}>No rooms available right now.</Text>

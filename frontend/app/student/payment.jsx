@@ -17,6 +17,9 @@ import PaymentMethodTabs from '../../components/student/payment/PaymentMethodTab
 import PaymentSummaryCard from '../../components/student/payment/PaymentSummaryCard';
 import ReceiptUploadZone from '../../components/student/payment/ReceiptUploadZone';
 import { COLORS } from '../../constants/colors';
+import apiClient from '../../lib/axios';
+import { studentMayViewRoom } from '../../lib/genderRoom';
+import { storage } from '../../lib/storage';
 import {
   DEFAULT_SECURITY_DEPOSIT_LKR,
   PAYMENT_PAGE_BG,
@@ -100,7 +103,22 @@ export default function StudentPaymentScreen() {
       setLoading(true);
       setError(null);
       try {
+        try {
+          const { data: me } = await apiClient.get('/auth/me');
+          if (me && !cancelled) await storage.setUser(me);
+        } catch {
+          /* cached user */
+        }
+        const user = await storage.getUser();
         const data = await getRoomById(roomIdValue);
+        if (cancelled) return;
+        if (!studentMayViewRoom(user, data)) {
+          setRoom(null);
+          setError(
+            'This room is not available for your profile. Go back and choose a room that matches your gender category.',
+          );
+          return;
+        }
         if (!cancelled) setRoom(data);
       } catch (e) {
         if (!cancelled) setError(getRoomErrorMessage(e));
