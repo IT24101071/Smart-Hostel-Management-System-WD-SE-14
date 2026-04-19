@@ -1,6 +1,9 @@
 import crypto from "crypto";
 import mongoose from "mongoose";
 import User from "../models/User.js";
+import Booking from "../models/Booking.js";
+import Notification from "../models/Notification.js";
+import Room from "../models/Room.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { uploadBufferToR2 } from "../utils/r2Upload.js";
@@ -28,6 +31,11 @@ function emailQueryFilter(normalized) {
 
 function generateSixDigitOtp() {
   return String(crypto.randomInt(100000, 1000000));
+}
+
+function recalculateRoomAvailability({ currentOccupancy, capacity, status }) {
+  if (status === "Maintenance") return "Maintenance";
+  return currentOccupancy >= capacity ? "Full" : "Available";
 }
 
 const generateToken = (id) => {
@@ -262,8 +270,176 @@ export const resetPassword = async (req, res) => {
 
 export const getMe = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
+    const user = await User.findById(req.user.id).select(
+      "-password -passwordResetOtpHash -passwordResetExpires",
+    );
     res.json(user);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/** Student updates own profile (name, contact, guardian fields, optional profile photo). */
+export const updateMyProfile = async (req, res) => {
+  try {
+    if (req.user.role !== "student") {
+      return res.status(403).json({
+        message: "Only students can update their profile here",
+      });
+    }
+
+    const { name, contactNo, guardianName, guardianContact, year, semester } =
+      req.body;
+
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    if (name !== undefined) {
+      const n = String(name).trim();
+      if (!n) {
+        return res.status(400).json({ message: "Name cannot be empty" });
+      }
+      user.name = n;
+    }
+    if (contactNo !== undefined) {
+      user.contactNo = String(contactNo).trim();
+    }
+    if (guardianName !== undefined) {
+      user.guardianName = String(guardianName).trim();
+    }
+    if (guardianContact !== undefined) {
+      user.guardianContact = String(guardianContact).trim();
+    }
+    if (year !== undefined && year !== null && String(year).trim() !== "") {
+      const y = Number(year);
+      if (!Number.isFinite(y)) {
+        return res.status(400).json({ message: "Year must be a valid number" });
+      }
+      user.year = y;
+    }
+    if (
+      semester !== undefined &&
+      semester !== null &&
+      String(semester).trim() !== ""
+    ) {
+      const s = Number(semester);
+      if (!Number.isFinite(s)) {
+        return res
+          .status(400)
+          .json({ message: "Semester must be a valid number" });
+      }
+      user.semester = s;
+    }
+
+    if (req.files?.profileImage?.[0]) {
+      const profileFile = req.files.profileImage[0];
+      user.profileImage = await uploadBufferToR2(
+        profileFile.buffer,
+        profileFile.originalname,
+        profileFile.mimetype,
+      );
+    }
+
+    await user.save();
+
+    const fresh = await User.findById(user._id).select(
+      "-password -passwordResetOtpHash -passwordResetExpires",
+    );
+
+    res.json({ message: "Profile updated successfully", user: fresh });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/** Authenticated user changes password (current password required; no OTP). */
+export const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body ?? {};
+
+    if (!currentPassword || String(currentPassword).trim() === "") {
+      return res.status(400).json({ message: "Current password is required" });
+    }
+    if (!newPassword || String(newPassword).trim() === "") {
+      return res.status(400).json({ message: "New password is required" });
+    }
+
+    const pwd = String(newPassword).trim();
+    if (pwd.length < MIN_NEW_PASSWORD_LEN) {
+      return res.status(400).json({
+        message: `Password must be at least ${MIN_NEW_PASSWORD_LEN} characters`,
+      });
+    }
+
+    const user = await User.findById(req.user.id).select("+password");
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const ok = await bcrypt.compare(String(currentPassword), user.password);
+    if (!ok) {
+      return res.status(400).json({ message: "Incorrect password" });
+    }
+
+    user.password = await bcrypt.hash(pwd, 10);
+    await user.save();
+
+    res.json({ message: "Password updated successfully" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/** Authenticated user deletes their own account (password required). */
+export const deleteMyAccount = async (req, res) => {
+  try {
+    const { password } = req.body ?? {};
+    if (!password || String(password).trim() === "") {
+      return res.status(400).json({
+        message: "Password is required to delete your account",
+      });
+    }
+
+    const userId = req.user.id;
+    const user = await User.findById(userId).select("+password");
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    if (user.role === "admin") {
+      return res.status(403).json({
+        message: "Admin accounts cannot be deleted from the app",
+      });
+    }
+
+    const match = await bcrypt.compare(String(password), user.password);
+    if (!match) {
+      return res.status(400).json({ message: "Incorrect password" });
+    }
+
+    const bookings = await Booking.find({ student: userId });
+    for (const booking of bookings) {
+      if (booking.bookingStatus === "confirmed") {
+        const room = await Room.findById(booking.room);
+        if (room) {
+          room.currentOccupancy = Math.max(
+            0,
+            Number(room.currentOccupancy) - 1,
+          );
+          room.availabilityStatus = recalculateRoomAvailability({
+            currentOccupancy: room.currentOccupancy,
+            capacity: room.capacity,
+            status: room.availabilityStatus,
+          });
+          await room.save();
+        }
+      }
+    }
+
+    await Booking.deleteMany({ student: userId });
+    await Notification.deleteMany({
+      $or: [{ recipient: userId }, { actor: userId }],
+    });
+    await User.findByIdAndDelete(userId);
+
+    res.json({ message: "Account deleted successfully" });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
