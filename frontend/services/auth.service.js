@@ -141,6 +141,32 @@ export async function login(payload) {
   return data;
 }
 
+export async function forgotPassword(payload) {
+  const { data } = await apiClient.post("/auth/forgot-password", payload);
+  return data;
+}
+
+export async function resetPassword(payload) {
+  const { data } = await apiClient.post("/auth/reset-password", payload);
+  return data;
+}
+
+export async function deleteAccount(payload) {
+  const { data } = await apiClient.delete("/auth/account", { data: payload });
+  return data;
+}
+
+/** JSON body (text-only update) or FormData when uploading a new profile photo. */
+export async function updateMyProfile(payload) {
+  const { data } = await apiClient.patch("/auth/me", payload);
+  return data;
+}
+
+export async function changePassword(payload) {
+  const { data } = await apiClient.post("/auth/change-password", payload);
+  return data;
+}
+
 export function getAuthErrorMessage(error) {
   if (error instanceof AxiosError) {
     const serverMessage = error.response?.data?.message;

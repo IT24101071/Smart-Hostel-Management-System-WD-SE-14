@@ -1,21 +1,97 @@
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 
-function resolveDevApiUrl() {
-  const hostUri = Constants.expoConfig?.hostUri;
-  if (hostUri) {
-    const host = hostUri.split(":")[0];
-    return `http://${host}:5000/api`;
+const DEFAULT_API_PORT = 5000;
+
+/**
+ * Parse host from Expo / Metro values like "192.168.1.5:8081" or "http://192.168.1.5:8081".
+ * IPv6 bracket form is supported.
+ */
+function parseHostFromDebuggerValue(value) {
+  if (!value || typeof value !== "string") return null;
+  let s = value.trim();
+  if (!s) return null;
+
+  s = s.replace(/^https?:\/\//i, "");
+  const slash = s.indexOf("/");
+  if (slash >= 0) s = s.slice(0, slash);
+
+  if (s.startsWith("[")) {
+    const end = s.indexOf("]");
+    if (end > 0) return s.slice(1, end);
+    return null;
   }
 
-  const fromEnv = process.env.EXPO_PUBLIC_API_URL;
-  if (fromEnv) return fromEnv;
+  const lastColon = s.lastIndexOf(":");
+  if (lastColon > 0) {
+    const maybePort = s.slice(lastColon + 1);
+    if (/^\d+$/.test(maybePort)) {
+      return s.slice(0, lastColon);
+    }
+  }
+
+  return s || null;
+}
+
+/** Tunnel / Expo cloud hosts do not reach a local Node server on :5000 */
+function isUnsuitableLocalApiHost(host) {
+  if (!host) return true;
+  const h = host.toLowerCase();
+  if (h.includes(".exp.direct")) return true;
+  if (h === "expo.dev" || h.endsWith(".expo.dev")) return true;
+  if (h.includes("ngrok")) return true;
+  return false;
+}
+
+function getDebuggerHostCandidates() {
+  const c = Constants;
+  return [
+    c.expoGoConfig?.debuggerHost,
+    c.expoConfig?.hostUri,
+    c.manifest2?.extra?.expoGo?.debuggerHost,
+    c.manifest?.debuggerHost,
+  ].filter(Boolean);
+}
+
+/**
+ * Dev API URL:
+ * 1. EXPO_PUBLIC_API_URL when set (explicit override).
+ * 2. Same LAN host as Metro (Expo Go on a real phone).
+ * 3. Emulator / localhost fallbacks.
+ */
+function resolveDevApiUrl() {
+  const fromEnv = process.env.EXPO_PUBLIC_API_URL?.trim();
+  if (fromEnv) {
+    if (__DEV__) {
+      console.log("[API] Using dev API URL from EXPO_PUBLIC_API_URL:", fromEnv);
+    }
+    return fromEnv;
+  }
+
+  for (const raw of getDebuggerHostCandidates()) {
+    const host = parseHostFromDebuggerValue(raw);
+    if (host && !isUnsuitableLocalApiHost(host)) {
+      const url = `http://${host}:${DEFAULT_API_PORT}/api`;
+      if (__DEV__) {
+        console.log("[API] Using dev API URL from Expo debugger host:", url);
+      }
+      return url;
+    }
+  }
 
   if (Platform.OS === "android") {
-    return "http://10.0.2.2:5000/api";
+    const url = `http://10.0.2.2:${DEFAULT_API_PORT}/api`;
+    if (__DEV__) {
+      console.log("[API] Using Android emulator fallback:", url);
+    }
+    return url;
   }
 
-  return "http://localhost:5000/api";
+  const url = `http://localhost:${DEFAULT_API_PORT}/api`;
+  if (__DEV__) {
+    console.log("[API] Using localhost fallback:", url);
+  }
+  return url;
 }
 
 export const API_BASE_URL = __DEV__
