@@ -21,6 +21,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import AdminSubHeader from "../../components/admin/AdminSubHeader";
 import { COLORS } from "../../constants/colors";
 import apiClient from "../../lib/axios";
+import { ROOM_GENDERS, ROOM_GENDER_LABELS } from "../../types/room";
 
 const TABS = [
   { key: "pending", label: "Awaiting approval" },
@@ -45,6 +46,12 @@ function getUserRecordId(user) {
     return String(raw.$oid);
   }
   return String(raw);
+}
+
+function formatGender(g) {
+  if (g === "male") return ROOM_GENDER_LABELS.male;
+  if (g === "female") return ROOM_GENDER_LABELS.female;
+  return "—";
 }
 
 export default function StudentManagement() {
@@ -106,6 +113,12 @@ export default function StudentManagement() {
       name: user.name ?? "",
       email: user.email ?? "",
       studentId: user.studentId ?? "",
+      gender:
+        user.gender === "female"
+          ? "female"
+          : user.gender === "male"
+            ? "male"
+            : "male",
       year: user.year != null ? String(user.year) : "",
       semester: user.semester != null ? String(user.semester) : "",
       contactNo: user.contactNo ?? "",
@@ -203,6 +216,9 @@ export default function StudentManagement() {
         guardianName: editForm.guardianName.trim(),
         guardianContact: editForm.guardianContact.trim(),
       };
+      if (editForm.gender === "male" || editForm.gender === "female") {
+        payload.gender = editForm.gender;
+      }
       if (editForm.password?.trim()) {
         payload.password = editForm.password.trim();
       }
@@ -248,6 +264,9 @@ export default function StudentManagement() {
           <Text style={styles.studentName}>{item.name}</Text>
           <Text style={styles.studentEmail}>{item.email}</Text>
           <Text style={styles.studentId}>ID: {item.studentId || "—"}</Text>
+          <Text style={styles.studentGender}>
+            Gender: {formatGender(item.gender)}
+          </Text>
         </View>
         <Ionicons name="chevron-forward" size={20} color={COLORS.textMuted} />
       </Pressable>
@@ -345,6 +364,12 @@ export default function StudentManagement() {
                       setEditForm((f) => ({ ...f, studentId: t }))
                     }
                   />
+                  <GenderEditRow
+                    value={editForm.gender}
+                    onChange={(g) =>
+                      setEditForm((f) => ({ ...f, gender: g }))
+                    }
+                  />
                   <FieldEdit
                     label="Year"
                     value={editForm.year}
@@ -399,6 +424,10 @@ export default function StudentManagement() {
                   <DetailRow label="Name" value={modalUser.name} />
                   <DetailRow label="Email" value={modalUser.email} />
                   <DetailRow label="Student ID" value={modalUser.studentId} />
+                  <DetailRow
+                    label="Gender"
+                    value={formatGender(modalUser.gender)}
+                  />
                   <DetailRow
                     label="Year / Semester"
                     value={`${modalUser.year ?? "—"} / ${modalUser.semester ?? "—"}`}
@@ -600,6 +629,38 @@ function FieldEdit({
   );
 }
 
+function GenderEditRow({ value, onChange }) {
+  return (
+    <View style={styles.fieldEdit}>
+      <Text style={styles.fieldEditLabel}>Gender</Text>
+      <View style={styles.genderEditRow}>
+        {ROOM_GENDERS.map((g) => {
+          const selected = value === g;
+          return (
+            <Pressable
+              key={g}
+              onPress={() => onChange(g)}
+              style={[
+                styles.genderEditChip,
+                selected && styles.genderEditChipActive,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.genderEditChipText,
+                  selected && styles.genderEditChipTextActive,
+                ]}
+              >
+                {ROOM_GENDER_LABELS[g]}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
@@ -692,6 +753,37 @@ const styles = StyleSheet.create({
     fontFamily: "PublicSans_500Medium",
     fontSize: 12,
     color: COLORS.primary,
+  },
+  studentGender: {
+    fontFamily: "PublicSans_400Regular",
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+  genderEditRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  genderEditChip: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.white,
+    alignItems: "center",
+  },
+  genderEditChipActive: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primaryLight,
+  },
+  genderEditChipText: {
+    fontFamily: "PublicSans_500Medium",
+    fontSize: 14,
+    color: COLORS.textMuted,
+  },
+  genderEditChipTextActive: {
+    color: COLORS.primary,
+    fontFamily: "PublicSans_600SemiBold",
   },
   quickActions: {
     flexDirection: "row",
