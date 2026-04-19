@@ -2,6 +2,8 @@ import express from "express";
 import {
   register,
   login,
+  forgotPassword,
+  resetPassword,
   getMe,
   getPendingUsers,
   getApprovedStudents,
@@ -31,6 +33,8 @@ router.post(
   register,
 );
 router.post("/login", login);
+router.post("/forgot-password", forgotPassword);
+router.post("/reset-password", resetPassword);
 
 router.post("/create-admin", createAdmin);
 

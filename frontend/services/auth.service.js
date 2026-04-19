@@ -141,6 +141,16 @@ export async function login(payload) {
   return data;
 }
 
+export async function forgotPassword(payload) {
+  const { data } = await apiClient.post("/auth/forgot-password", payload);
+  return data;
+}
+
+export async function resetPassword(payload) {
+  const { data } = await apiClient.post("/auth/reset-password", payload);
+  return data;
+}
+
 export function getAuthErrorMessage(error) {
   if (error instanceof AxiosError) {
     const serverMessage = error.response?.data?.message;

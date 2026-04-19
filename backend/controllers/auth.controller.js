@@ -1,10 +1,34 @@
+import crypto from "crypto";
 import mongoose from "mongoose";
 import User from "../models/User.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { uploadBufferToR2 } from "../utils/r2Upload.js";
+import { sendPasswordResetOtpEmail } from "../utils/brevoEmail.js";
 
 const GENDERS = ["male", "female"];
+
+const PASSWORD_RESET_OTP_TTL_MS = 15 * 60 * 1000;
+const MIN_NEW_PASSWORD_LEN = 8;
+
+function normalizeEmail(email) {
+  return String(email ?? "")
+    .trim()
+    .toLowerCase();
+}
+
+function escapeRegex(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Case-insensitive match for stored emails */
+function emailQueryFilter(normalized) {
+  return { email: new RegExp(`^${escapeRegex(normalized)}$`, "i") };
+}
+
+function generateSixDigitOtp() {
+  return String(crypto.randomInt(100000, 1000000));
+}
 
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "7d" });
@@ -127,6 +151,109 @@ export const login = async (req, res) => {
         isApproved: user.isApproved,
         gender: user.gender,
       },
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const FORGOT_PASSWORD_RESPONSE = {
+  message:
+    "If an account exists for this email, you will receive a reset code shortly.",
+};
+
+export const forgotPassword = async (req, res) => {
+  try {
+    const normalized = normalizeEmail(req.body?.email);
+    if (!normalized) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+
+    const user = await User.findOne(emailQueryFilter(normalized));
+    if (!user) {
+      return res.status(200).json(FORGOT_PASSWORD_RESPONSE);
+    }
+
+    const otp = generateSixDigitOtp();
+    const passwordResetOtpHash = await bcrypt.hash(otp, 10);
+    const passwordResetExpires = new Date(Date.now() + PASSWORD_RESET_OTP_TTL_MS);
+
+    user.passwordResetOtpHash = passwordResetOtpHash;
+    user.passwordResetExpires = passwordResetExpires;
+    await user.save();
+
+    try {
+      await sendPasswordResetOtpEmail(user.email, otp);
+    } catch (err) {
+      console.error("[forgotPassword] Brevo send failed:", err);
+      user.passwordResetOtpHash = undefined;
+      user.passwordResetExpires = undefined;
+      await user.save();
+    }
+
+    return res.status(200).json(FORGOT_PASSWORD_RESPONSE);
+  } catch (error) {
+    console.error("[forgotPassword]", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const resetPassword = async (req, res) => {
+  try {
+    const normalized = normalizeEmail(req.body?.email);
+    const otpRaw = req.body?.otp;
+    const newPassword = req.body?.newPassword;
+
+    if (!normalized) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+    if (otpRaw == null || String(otpRaw).trim() === "") {
+      return res.status(400).json({ message: "Reset code is required" });
+    }
+    if (newPassword == null || String(newPassword).trim() === "") {
+      return res.status(400).json({ message: "New password is required" });
+    }
+
+    const pwd = String(newPassword).trim();
+    if (pwd.length < MIN_NEW_PASSWORD_LEN) {
+      return res.status(400).json({
+        message: `Password must be at least ${MIN_NEW_PASSWORD_LEN} characters`,
+      });
+    }
+
+    const user = await User.findOne(emailQueryFilter(normalized)).select(
+      "+passwordResetOtpHash",
+    );
+
+    if (!user?.passwordResetOtpHash || !user.passwordResetExpires) {
+      return res.status(400).json({
+        message: "Invalid or expired reset code. Request a new code.",
+      });
+    }
+
+    if (user.passwordResetExpires.getTime() < Date.now()) {
+      user.passwordResetOtpHash = undefined;
+      user.passwordResetExpires = undefined;
+      await user.save();
+      return res.status(400).json({
+        message: "Invalid or expired reset code. Request a new code.",
+      });
+    }
+
+    const ok = await bcrypt.compare(String(otpRaw).trim(), user.passwordResetOtpHash);
+    if (!ok) {
+      return res.status(400).json({
+        message: "Invalid or expired reset code.",
+      });
+    }
+
+    user.password = await bcrypt.hash(pwd, 10);
+    user.passwordResetOtpHash = undefined;
+    user.passwordResetExpires = undefined;
+    await user.save();
+
+    res.json({
+      message: "Password updated successfully. You can sign in now.",
     });
   } catch (error) {
     res.status(500).json({ message: error.message });

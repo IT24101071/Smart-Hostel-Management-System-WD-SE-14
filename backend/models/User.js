@@ -26,6 +26,9 @@ const userSchema = new mongoose.Schema(
     guardianContact: { type: String },
     profileImage: { type: String },
     idCardImage: { type: String },
+
+    passwordResetOtpHash: { type: String, select: false },
+    passwordResetExpires: { type: Date },
   },
   { timestamps: true },
 );

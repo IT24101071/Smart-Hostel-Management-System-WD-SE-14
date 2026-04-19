@@ -161,7 +161,10 @@ export default function LoginForm() {
           </View>
           <Text style={styles.rememberText}>Remember Me</Text>
         </Pressable>
-        <Pressable disabled={loading}>
+        <Pressable
+          onPress={() => router.push("/forgot-password")}
+          disabled={loading}
+        >
           <Text style={styles.forgotText}>Forgot Password?</Text>
         </Pressable>
       </View>
