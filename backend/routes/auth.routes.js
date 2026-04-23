@@ -17,6 +17,8 @@ import {
   getAllUsers,
   deleteUser,
   updateUser,
+  getAdminAuditLogs,
+  getAdminMetrics,
 } from "../controllers/auth.controller.js";
 import { protect, adminOnly } from "../middleware/auth.middleware.js";
 import {
@@ -54,7 +56,7 @@ router.post("/login", login);
 router.post("/forgot-password", forgotPassword);
 router.post("/reset-password", resetPassword);
 
-router.post("/create-admin", createAdmin);
+router.post("/create-admin", protect, adminOnly, createAdmin);
 
 router.get("/me", protect, getMe);
 router.patch("/me", protect, patchMeUpload, updateMyProfile);
@@ -67,6 +69,8 @@ router.get("/wardens", protect, adminOnly, getWardens);
 router.patch("/approve/:id", protect, adminOnly, approveStudent);
 router.post("/create-warden", protect, adminOnly, createWarden);
 router.get("/users", protect, adminOnly, getAllUsers);
+router.get("/admin-audit-logs", protect, adminOnly, getAdminAuditLogs);
+router.get("/admin-metrics", protect, adminOnly, getAdminMetrics);
 router.delete("/users/:id", protect, adminOnly, deleteUser);
 router.patch("/users/:id", protect, adminOnly, updateUser);
 

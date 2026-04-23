@@ -4,6 +4,7 @@ import User from "../models/User.js";
 import Booking from "../models/Booking.js";
 import Notification from "../models/Notification.js";
 import Room from "../models/Room.js";
+import AdminAuditLog from "../models/AdminAuditLog.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { uploadBufferToR2 } from "../utils/r2Upload.js";
@@ -41,6 +42,22 @@ function recalculateRoomAvailability({ currentOccupancy, capacity, status }) {
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "7d" });
 };
+
+async function writeAdminAuditLog({ action, actorId, targetAdminId, details }) {
+  if (!actorId) return;
+  await AdminAuditLog.create({
+    action,
+    actor: actorId,
+    targetAdmin: targetAdminId,
+    details,
+  });
+}
+
+function startOfDay(dateValue) {
+  const date = new Date(dateValue);
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
 
 export const register = async (req, res) => {
   try {
@@ -148,6 +165,10 @@ export const login = async (req, res) => {
     }
 
     const token = generateToken(user._id);
+    user.lastLoginAt = new Date();
+    user.lastActionAt = new Date();
+    user.lastAction = "Logged in";
+    await user.save();
 
     res.json({
       token,
@@ -514,6 +535,20 @@ export const createAdmin = async (req, res) => {
       password: hashed,
       role: "admin",
       isApproved: true,
+      lastActionAt: new Date(),
+      lastAction: "Admin account created",
+    });
+    if (req.user?.id) {
+      await User.findByIdAndUpdate(req.user.id, {
+        lastActionAt: new Date(),
+        lastAction: "Created admin account",
+      });
+    }
+    await writeAdminAuditLog({
+      action: "create_admin",
+      actorId: req.user?.id,
+      targetAdminId: admin._id,
+      details: `Created admin ${admin.email}`,
     });
 
     res.status(201).json({
@@ -570,8 +605,83 @@ export const createWarden = async (req, res) => {
 
 export const getAllUsers = async (req, res) => {
   try {
-    const users = await User.find();
+    const role = req.query?.role ? String(req.query.role) : null;
+    const search = req.query?.search ? String(req.query.search).trim() : "";
+    const filter = {};
+    if (role) filter.role = role;
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { email: { $regex: search, $options: "i" } },
+      ];
+    }
+    const users = await User.find(filter).sort({ createdAt: -1 });
     res.json(users);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const getAdminAuditLogs = async (req, res) => {
+  try {
+    const action = req.query?.action ? String(req.query.action).trim() : "";
+    const actorSearch = req.query?.actor ? String(req.query.actor).trim() : "";
+    const from = req.query?.from ? new Date(String(req.query.from)) : null;
+    const to = req.query?.to ? new Date(String(req.query.to)) : null;
+
+    const filter = {};
+    if (action && action !== "all") filter.action = action;
+    if (from || to) {
+      filter.createdAt = {};
+      if (from && !Number.isNaN(from.getTime())) filter.createdAt.$gte = startOfDay(from);
+      if (to && !Number.isNaN(to.getTime())) {
+        const end = startOfDay(to);
+        end.setDate(end.getDate() + 1);
+        filter.createdAt.$lt = end;
+      }
+    }
+
+    let logs = await AdminAuditLog.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .populate("actor", "name email")
+      .populate("targetAdmin", "name email");
+    if (actorSearch) {
+      const q = actorSearch.toLowerCase();
+      logs = logs.filter((log) => {
+        const actorName = String(log.actor?.name || "").toLowerCase();
+        const actorEmail = String(log.actor?.email || "").toLowerCase();
+        return actorName.includes(q) || actorEmail.includes(q);
+      });
+    }
+    res.json(logs);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const getAdminMetrics = async (req, res) => {
+  try {
+    const now = new Date();
+    const sevenDaysAgo = new Date(now);
+    sevenDaysAgo.setDate(now.getDate() - 7);
+
+    const [totalAdmins, activeAdmins, inactiveAdmins, recentLogins, recentActions] =
+      await Promise.all([
+        User.countDocuments({ role: "admin" }),
+        User.countDocuments({ role: "admin", isApproved: true }),
+        User.countDocuments({ role: "admin", isApproved: false }),
+        User.countDocuments({ role: "admin", lastLoginAt: { $gte: sevenDaysAgo } }),
+        AdminAuditLog.countDocuments({ createdAt: { $gte: sevenDaysAgo } }),
+      ]);
+
+    res.json({
+      totalAdmins,
+      activeAdmins,
+      inactiveAdmins,
+      recentLogins,
+      recentActions,
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -585,12 +695,33 @@ export const deleteUser = async (req, res) => {
     }
     const user = await User.findById(id);
     if (!user) return res.status(404).json({ message: "User not found" });
-    if (user.role === "admin") {
-      return res
-        .status(403)
-        .json({ message: "Cannot delete an admin account" });
+    const isAdminTarget = user.role === "admin";
+    if (req.user?.id && String(user._id) === String(req.user.id)) {
+      return res.status(403).json({ message: "You cannot delete your own account" });
+    }
+    if (isAdminTarget) {
+      const adminCount = await User.countDocuments({ role: "admin" });
+      if (adminCount <= 1) {
+        return res
+          .status(403)
+          .json({ message: "Cannot delete the last remaining admin account" });
+      }
     }
     await User.findByIdAndDelete(id);
+    if (req.user?.id) {
+      await User.findByIdAndUpdate(req.user.id, {
+        lastActionAt: new Date(),
+        lastAction: "Deleted admin account",
+      });
+    }
+    if (isAdminTarget) {
+      await writeAdminAuditLog({
+        action: "delete_admin",
+        actorId: req.user?.id,
+        targetAdminId: user._id,
+        details: `Deleted admin ${user.email}`,
+      });
+    }
     res.json({ message: "User deleted successfully" });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -610,10 +741,12 @@ export const updateUser = async (req, res) => {
       guardianName,
       guardianContact,
       gender,
+      isApproved,
     } = req.body;
 
     const target = await User.findById(req.params.id).select("+password");
     if (!target) return res.status(404).json({ message: "User not found" });
+    const isAdminTarget = target.role === "admin";
 
     if (email && email !== target.email) {
       const exists = await User.findOne({ email });
@@ -643,12 +776,37 @@ export const updateUser = async (req, res) => {
       }
       target.gender = gender;
     }
+    if (isApproved !== undefined) {
+      target.isApproved = Boolean(isApproved);
+    }
 
     if (password && String(password).trim() !== "") {
       target.password = await bcrypt.hash(password, 10);
     }
+    target.lastActionAt = new Date();
+    target.lastAction = "Profile updated";
 
     await target.save();
+    if (req.user?.id) {
+      await User.findByIdAndUpdate(req.user.id, {
+        lastActionAt: new Date(),
+        lastAction: isAdminTarget ? "Updated admin account" : "Updated user account",
+      });
+    }
+    if (isAdminTarget) {
+      const statusLabel =
+        isApproved === undefined
+          ? "Updated admin account"
+          : isApproved
+            ? "Activated admin account"
+            : "Deactivated admin account";
+      await writeAdminAuditLog({
+        action: "update_admin",
+        actorId: req.user?.id,
+        targetAdminId: target._id,
+        details: `${statusLabel}: ${target.email}`,
+      });
+    }
 
     const safe = target.toObject();
     delete safe.password;
