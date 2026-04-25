@@ -39,6 +39,19 @@ const DASHBOARD_ITEMS = [
     active: true,
   },
   {
+<<<<<<< HEAD
+=======
+    id: "tickets",
+    title: "Ticket Management",
+    description: "Review and handle student support tickets",
+    icon: "ticket-outline",
+    iconColor: COLORS.orange,
+    iconBg: COLORS.orangeBg,
+    route: "/admin/tickets",
+    active: true,
+  },
+  {
+>>>>>>> 401fffb (Integrated Warden Dashboard)
     id: "admins",
     title: "Admin Management",
     description: "Create, update & secure admin accounts",
