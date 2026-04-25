@@ -19,7 +19,7 @@ if (
   !R2_BUCKET_NAME ||
   !R2_PUBLIC_URL
 ) {
-  throw new Error("Missing Cloudflare R2 environment variables");
+  //throw new Error("Missing Cloudflare R2 environment variables");
 }
 
 const r2Client = new S3Client({

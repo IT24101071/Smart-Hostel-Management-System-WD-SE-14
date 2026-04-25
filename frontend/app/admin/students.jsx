@@ -366,9 +366,7 @@ export default function StudentManagement() {
                   />
                   <GenderEditRow
                     value={editForm.gender}
-                    onChange={(g) =>
-                      setEditForm((f) => ({ ...f, gender: g }))
-                    }
+                    onChange={(g) => setEditForm((f) => ({ ...f, gender: g }))}
                   />
                   <FieldEdit
                     label="Year"
