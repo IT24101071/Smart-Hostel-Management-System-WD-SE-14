@@ -39,7 +39,6 @@ const DASHBOARD_ITEMS = [
     active: true,
   },
   {
-<<<<<<< HEAD
     id: "tickets",
     title: "Ticket Management",
     description: "Review and handle student support tickets",
@@ -47,7 +46,9 @@ const DASHBOARD_ITEMS = [
     iconColor: COLORS.orange,
     iconBg: COLORS.orangeBg,
     route: "/admin/tickets",
-=======
+    active: true,
+  },
+  {
     id: "payments",
     title: "Payment Management",
     description: "Verify & confirm student payments",
@@ -55,7 +56,6 @@ const DASHBOARD_ITEMS = [
     iconColor: "#10B981",
     iconBg: "#D1FAE5",
     route: "/admin/payments",
->>>>>>> 73e2ea3ba049bfda7e7e3e293d59f5ca0ae01853
     active: true,
   },
   {
