@@ -39,7 +39,6 @@ const DASHBOARD_ITEMS = [
     active: true,
   },
   {
-<<<<<<< HEAD
     id: "payments",
     title: "Payment Management",
     description: "Verify & confirm student payments",
@@ -47,7 +46,9 @@ const DASHBOARD_ITEMS = [
     iconColor: "#10B981",
     iconBg: "#D1FAE5",
     route: "/admin/payments",
-=======
+    active: true,
+  },
+  {
     id: "admins",
     title: "Admin Management",
     description: "Create, update & secure admin accounts",
@@ -55,7 +56,6 @@ const DASHBOARD_ITEMS = [
     iconColor: COLORS.indigo,
     iconBg: COLORS.indigoBg,
     route: "/admin/admins",
->>>>>>> origin/main
     active: true,
   },
 ];
