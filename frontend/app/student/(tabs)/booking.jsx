@@ -137,18 +137,16 @@ export default function StudentBookingScreen() {
     return d;
   }, [confirmedBooking?.checkInDate]);
   const hasStayStarted = useMemo(() => {
-    if (!confirmedBooking?.checkInDate) return false;
-    const checkIn = new Date(confirmedBooking.checkInDate);
-    checkIn.setHours(0, 0, 0, 0);
-    return today >= checkIn;
-  }, [confirmedBooking?.checkInDate, today]);
+    if (!originalCheckInDate) return false;
+    return today >= originalCheckInDate;
+  }, [originalCheckInDate, today]);
+
   const cancelDeadlineReached = useMemo(() => {
-    if (!confirmedBooking?.checkInDate) return false;
-    const d = new Date(confirmedBooking.checkInDate);
-    d.setHours(0, 0, 0, 0);
-    d.setDate(d.getDate() - 1);
-    return today > d;
-  }, [confirmedBooking?.checkInDate, today]);
+    if (!originalCheckInDate) return false;
+    const deadline = new Date(originalCheckInDate);
+    deadline.setDate(deadline.getDate() - 1);
+    return today > deadline;
+  }, [originalCheckInDate, today]);
 
   useEffect(() => {
     if (checkInDate && checkOutDate && checkOutDate <= checkInDate) {
@@ -165,9 +163,9 @@ export default function StudentBookingScreen() {
       const originalDays =
         originalCheckInDate && originalCheckOutDate
           ? Math.max(
-              1,
-              Math.floor((originalCheckOutDate.getTime() - originalCheckInDate.getTime()) / msPerDay),
-            )
+            1,
+            Math.floor((originalCheckOutDate.getTime() - originalCheckInDate.getTime()) / msPerDay),
+          )
           : 1;
       const editedDays = Math.max(
         1,
@@ -259,7 +257,7 @@ export default function StudentBookingScreen() {
     if (!room || roomError) {
       parts.push(
         roomError ||
-          'Open this screen from a room and wait for details to load before paying.',
+        'Open this screen from a room and wait for details to load before paying.',
       );
     }
     if (stayValidationError) {
@@ -313,8 +311,8 @@ export default function StudentBookingScreen() {
     q.set('checkOutDate', checkOutDate.toISOString());
     q.set('stayDays', String(stayDays));
     q.set('roomFees', String(Number(depositSummary.amount)));
-    q.set('securityDeposit', manageMode ? '0' : '5000');
-    q.set('totalDue', String(Number(depositSummary.amount) + (manageMode ? 0 : 5000)));
+    q.set('securityDeposit', manageMode ? '0' : '1000');
+    q.set('totalDue', String(Number(depositSummary.amount) + (manageMode ? 0 : 1000)));
     if (manageMode && confirmedBooking?.id) {
       q.set('manageAction', 'extend');
       q.set('bookingId', String(confirmedBooking.id));

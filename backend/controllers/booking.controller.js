@@ -183,19 +183,19 @@ export const createBooking = async (req, res) => {
       totalDue: parsedTotal,
       amountPaidByBooker: parsedTotal,
       paymentMethod,
-      paymentStatus: "completed",
-      bookingStatus: "confirmed",
+      paymentStatus: paymentMethod === "bank" ? "submitted" : "completed",
+      bookingStatus: paymentMethod === "bank" ? "pending" : "confirmed",
       receipt:
         paymentMethod === "bank"
           ? {
-              uri: String(receipt?.uri ?? "").trim(),
-              name: String(receipt?.name ?? "").trim(),
-              mimeType: String(receipt?.mimeType ?? "").trim(),
-              size:
-                receipt?.size === undefined || receipt?.size === null
-                  ? undefined
-                  : Number(receipt.size),
-            }
+            uri: String(receipt?.uri ?? "").trim(),
+            name: String(receipt?.name ?? "").trim(),
+            mimeType: String(receipt?.mimeType ?? "").trim(),
+            size:
+              receipt?.size === undefined || receipt?.size === null
+                ? undefined
+                : Number(receipt.size),
+          }
           : undefined,
       cardMasked:
         paymentMethod === "card" ? String(cardMasked ?? "").trim() : undefined,
@@ -360,6 +360,7 @@ export const cancelBooking = async (req, res) => {
     const deadline = new Date(booking.checkInDate);
     deadline.setHours(0, 0, 0, 0);
     deadline.setDate(deadline.getDate() - 1);
+    
     if (now > deadline) {
       return res.status(400).json({
         message: "Cancellation is allowed only up to one day before check-in",
@@ -367,6 +368,11 @@ export const cancelBooking = async (req, res) => {
     }
 
     booking.bookingStatus = "cancelled";
+    // Change paymentStatus to failed so it doesn't count towards revenue.
+    // It will appear in the Failed tab in Admin Dashboard.
+    if (booking.paymentStatus === "completed") {
+      booking.paymentStatus = "failed";
+    }
     await booking.save();
 
     const room = await Room.findById(booking.room?._id ?? booking.room);
@@ -454,7 +460,7 @@ export const extendBooking = async (req, res) => {
       Math.floor(
         (new Date(booking.checkOutDate).getTime() -
           new Date(booking.checkInDate).getTime()) /
-          msPerDay,
+        msPerDay,
       ),
     );
     const editedDays = Math.max(
@@ -483,18 +489,23 @@ export const extendBooking = async (req, res) => {
       const monthly = Number(booking.room?.pricePerMonth ?? 0);
       additionalRoomFees = Math.round((monthly / 30) * extraDays);
       booking.paymentMethod = paymentMethod;
-      booking.paymentStatus = "completed";
+      if (paymentMethod === "bank") {
+        booking.paymentStatus = "submitted";
+        booking.bookingStatus = "pending";
+      } else {
+        booking.paymentStatus = "completed";
+      }
       booking.receipt =
         paymentMethod === "bank"
           ? {
-              uri: String(receipt?.uri ?? "").trim(),
-              name: String(receipt?.name ?? "").trim(),
-              mimeType: String(receipt?.mimeType ?? "").trim(),
-              size:
-                receipt?.size === undefined || receipt?.size === null
-                  ? undefined
-                  : Number(receipt.size),
-            }
+            uri: String(receipt?.uri ?? "").trim(),
+            name: String(receipt?.name ?? "").trim(),
+            mimeType: String(receipt?.mimeType ?? "").trim(),
+            size:
+              receipt?.size === undefined || receipt?.size === null
+                ? undefined
+                : Number(receipt.size),
+          }
           : undefined;
       booking.cardMasked =
         paymentMethod === "card" ? String(cardMasked ?? "").trim() : undefined;
@@ -516,8 +527,8 @@ export const extendBooking = async (req, res) => {
       message:
         extraDays > 0
           ? `Your stay has been extended to ${new Date(
-              booking.checkOutDate,
-            ).toLocaleDateString()}.`
+            booking.checkOutDate,
+          ).toLocaleDateString()}.`
           : "Your stay dates were updated successfully.",
       booking: booking._id,
       read: false,

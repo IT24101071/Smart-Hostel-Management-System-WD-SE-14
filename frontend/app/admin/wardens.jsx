@@ -17,7 +17,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import AdminSubHeader from "../../components/admin/AdminSubHeader";
+import AdminSubHeader from "../../components/admin/adminSubHeader";
 import { COLORS } from "../../constants/colors";
 import apiClient from "../../lib/axios";
 

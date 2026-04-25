@@ -1,5 +1,5 @@
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useRouter } from "expo-router";
+import { useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -8,31 +8,40 @@ import {
   StyleSheet,
   Text,
   View,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import AdminSubHeader from '../../../components/admin/AdminSubHeader';
-import RoomForm from '../../../components/rooms/RoomForm';
-import { COLORS } from '../../../constants/colors';
-import { createRoom, getRoomErrorMessage } from '../../../services/room.service';
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { SafeAreaView } from "react-native-safe-area-context";
+import AdminSubHeader from "../../../components/admin/adminSubHeader";
+import RoomForm from "../../../components/rooms/RoomForm";
+import { COLORS } from "../../../constants/colors";
+import {
+  createRoom,
+  getRoomErrorMessage,
+} from "../../../services/room.service";
 
 export default function CreateRoomScreen() {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
-  const [apiError, setApiError] = useState('');
+  const [apiError, setApiError] = useState("");
 
   async function handleSubmit(values) {
-    setApiError('');
+    setApiError("");
     setSubmitting(true);
     try {
       const room = await createRoom(values);
-      Alert.alert('Success', `Room ${room.roomNumber} has been created successfully.`, [
-        {
-          text: 'OK',
-          onPress: () =>
-            router.replace(`/admin/rooms/${encodeURIComponent(String(room.id))}`),
-        },
-      ]);
+      Alert.alert(
+        "Success",
+        `Room ${room.roomNumber} has been created successfully.`,
+        [
+          {
+            text: "OK",
+            onPress: () =>
+              router.replace(
+                `/admin/rooms/${encodeURIComponent(String(room.id))}`,
+              ),
+          },
+        ],
+      );
     } catch (err) {
       setApiError(getRoomErrorMessage(err));
     } finally {
@@ -41,7 +50,7 @@ export default function CreateRoomScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['bottom']}>
+    <SafeAreaView style={styles.safeArea} edges={["bottom"]}>
       <AdminSubHeader
         title="Add New Room"
         subtitle="Fill in the room details below"
@@ -49,16 +58,20 @@ export default function CreateRoomScreen() {
       />
 
       {/* API error banner */}
-      {apiError !== '' && (
+      {apiError !== "" && (
         <View style={styles.errorBanner}>
-          <Ionicons name="alert-circle-outline" size={16} color={COLORS.maintenance} />
+          <Ionicons
+            name="alert-circle-outline"
+            size={16}
+            color={COLORS.maintenance}
+          />
           <Text style={styles.errorText}>{apiError}</Text>
         </View>
       )}
 
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <ScrollView
           contentContainerStyle={styles.content}
@@ -66,7 +79,7 @@ export default function CreateRoomScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <RoomForm
-            submitLabel={submitting ? 'Creating…' : 'Create Room'}
+            submitLabel={submitting ? "Creating…" : "Create Room"}
             submitting={submitting}
             onCancel={() => router.back()}
             onSubmit={handleSubmit}
@@ -90,8 +103,8 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   errorBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
     backgroundColor: COLORS.maintenanceBg,
     borderBottomWidth: 1,
@@ -100,7 +113,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   errorText: {
-    fontFamily: 'PublicSans_400Regular',
+    fontFamily: "PublicSans_400Regular",
     fontSize: 13,
     color: COLORS.maintenance,
     flex: 1,

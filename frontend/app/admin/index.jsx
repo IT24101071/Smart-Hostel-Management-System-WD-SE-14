@@ -35,6 +35,16 @@ const DASHBOARD_ITEMS = [
     route: "/admin/rooms",
     active: true,
   },
+  {
+    id: "payments",
+    title: "Payment Management",
+    description: "Verify & confirm student payments",
+    icon: "card-outline",
+    iconColor: "#10B981",
+    iconBg: "#D1FAE5",
+    route: "/admin/payments",
+    active: true,
+  },
 ];
 
 export default function AdminDashboard() {
