@@ -1,8 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useEffect, useState } from "react";
+import { ActivityIndicator } from "react-native";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { COLORS } from "../../constants/colors";
+import { getAdminMetrics } from "../../services/admin.service";
 
 const DASHBOARD_ITEMS = [
   {
@@ -36,6 +39,7 @@ const DASHBOARD_ITEMS = [
     active: true,
   },
   {
+<<<<<<< HEAD
     id: "payments",
     title: "Payment Management",
     description: "Verify & confirm student payments",
@@ -43,12 +47,23 @@ const DASHBOARD_ITEMS = [
     iconColor: "#10B981",
     iconBg: "#D1FAE5",
     route: "/admin/payments",
+=======
+    id: "admins",
+    title: "Admin Management",
+    description: "Create, update & secure admin accounts",
+    icon: "shield-checkmark-outline",
+    iconColor: COLORS.indigo,
+    iconBg: COLORS.indigoBg,
+    route: "/admin/admins",
+>>>>>>> origin/main
     active: true,
   },
 ];
 
 export default function AdminDashboard() {
   const router = useRouter();
+  const [metrics, setMetrics] = useState(null);
+  const [loadingMetrics, setLoadingMetrics] = useState(true);
 
   function handleCardPress(item) {
     if (item.active && item.route) {
@@ -56,11 +71,61 @@ export default function AdminDashboard() {
     }
   }
 
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await getAdminMetrics();
+        setMetrics(data);
+      } finally {
+        setLoadingMetrics(false);
+      }
+    })();
+  }, []);
+
   return (
     <SafeAreaView style={styles.safeArea} edges={["bottom"]}>
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Quick Actions</Text>
         <Text style={styles.sectionSubtitle}>Tap a module to get started</Text>
+      </View>
+
+      <View style={styles.metricsWrap}>
+        {loadingMetrics ? (
+          <View style={styles.metricsLoading}>
+            <ActivityIndicator size="small" color={COLORS.primary} />
+          </View>
+        ) : (
+          <View style={styles.metricsGrid}>
+            <MetricCard
+              label="Total Admins"
+              value={metrics?.totalAdmins ?? 0}
+              icon="shield-checkmark-outline"
+              iconBg={COLORS.indigoBg}
+              iconColor={COLORS.indigo}
+            />
+            <MetricCard
+              label="Active Admins"
+              value={metrics?.activeAdmins ?? 0}
+              icon="checkmark-circle-outline"
+              iconBg={COLORS.availableBg}
+              iconColor={COLORS.available}
+            />
+            <MetricCard
+              label="Inactive Admins"
+              value={metrics?.inactiveAdmins ?? 0}
+              icon="pause-circle-outline"
+              iconBg={COLORS.maintenanceBg}
+              iconColor={COLORS.maintenance}
+            />
+            <MetricCard
+              label="Actions (7 days)"
+              value={metrics?.recentActions ?? 0}
+              icon="time-outline"
+              iconBg={COLORS.primaryLight}
+              iconColor={COLORS.primary}
+            />
+          </View>
+        )}
       </View>
 
       <ScrollView
@@ -109,6 +174,18 @@ export default function AdminDashboard() {
   );
 }
 
+function MetricCard({ label, value, icon, iconBg, iconColor }) {
+  return (
+    <View style={styles.metricCard}>
+      <View style={[styles.metricIcon, { backgroundColor: iconBg }]}>
+        <Ionicons name={icon} size={18} color={iconColor} />
+      </View>
+      <Text style={styles.metricValue}>{value}</Text>
+      <Text style={styles.metricLabel}>{label}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
@@ -128,6 +205,49 @@ const styles = StyleSheet.create({
   sectionSubtitle: {
     fontFamily: "PublicSans_400Regular",
     fontSize: 13,
+    color: COLORS.textMuted,
+    marginTop: 2,
+  },
+  metricsWrap: {
+    paddingHorizontal: 12,
+    paddingBottom: 10,
+  },
+  metricsLoading: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  metricsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  metricCard: {
+    width: "48%",
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  metricIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  metricValue: {
+    fontFamily: "PublicSans_700Bold",
+    fontSize: 20,
+    color: COLORS.textPrimary,
+  },
+  metricLabel: {
+    fontFamily: "PublicSans_400Regular",
+    fontSize: 12,
     color: COLORS.textMuted,
     marginTop: 2,
   },
