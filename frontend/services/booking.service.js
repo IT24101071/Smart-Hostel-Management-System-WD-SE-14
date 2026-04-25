@@ -82,6 +82,28 @@ export async function createBooking(payload) {
   });
 }
 
+export async function uploadReceipt(fileUri) {
+  if (!fileUri) return null;
+
+  const formData = new FormData();
+  
+  // For Expo/React Native, we need to construct the file object
+  const filename = fileUri.split("/").pop();
+  const match = /\.(\w+)$/.exec(filename);
+  const type = match ? `image/${match[1] === 'pdf' ? 'pdf' : match[1]}` : `image`;
+
+  formData.append("receipt", {
+    uri: fileUri,
+    name: filename,
+    type: type,
+  });
+
+  return fetchApi("/upload/receipt", {
+    method: "POST",
+    body: formData,
+  });
+}
+
 function mapBooking(raw) {
   if (!raw) return null;
   const room = raw.room

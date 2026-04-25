@@ -28,6 +28,7 @@ import {
   createBooking,
   extendBooking,
   getBookingErrorMessage,
+  uploadReceipt,
 } from '../../services/booking.service';
 import { getRoomById, getRoomErrorMessage } from '../../services/room.service';
 
@@ -178,6 +179,22 @@ export default function StudentPaymentScreen() {
     if (payDisabled) return;
     setIsPaying(true);
     try {
+      let serverReceipt = undefined;
+      
+      if (method === 'bank' && receipt?.uri) {
+        try {
+          const uploadRes = await uploadReceipt(receipt.uri);
+          serverReceipt = {
+            uri: uploadRes.url,
+            name: uploadRes.filename || receipt.name,
+            mimeType: uploadRes.mimetype || receipt.mimeType,
+            size: uploadRes.size || receipt.size
+          };
+        } catch (uploadErr) {
+          throw new Error('Failed to upload receipt. Please try again.');
+        }
+      }
+
       const payload = {
         roomId: roomIdValue,
         checkInDate: bookingParams.checkInDate,
@@ -188,7 +205,7 @@ export default function StudentPaymentScreen() {
         totalDue: total,
         paymentMethod: method,
         amountPaidNow: payNowAmount,
-        receipt: method === 'bank' ? receipt : undefined,
+        receipt: serverReceipt,
         cardMasked:
           method === 'card'
             ? (() => {
@@ -205,7 +222,7 @@ export default function StudentPaymentScreen() {
           newCheckInDate: bookingParams.checkInDate,
           newCheckOutDate: bookingParams.checkOutDate,
           paymentMethod: method,
-          receipt: method === 'bank' ? receipt : undefined,
+          receipt: serverReceipt,
           cardMasked: payload.cardMasked,
         });
       } else {

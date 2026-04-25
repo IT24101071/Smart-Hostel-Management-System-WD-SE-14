@@ -18,7 +18,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import AdminSubHeader from "../../components/admin/AdminSubHeader";
+import AdminSubHeader from "../../components/admin/adminSubHeader";
 import { COLORS } from "../../constants/colors";
 import apiClient from "../../lib/axios";
 import { ROOM_GENDERS, ROOM_GENDER_LABELS } from "../../types/room";
@@ -366,9 +366,7 @@ export default function StudentManagement() {
                   />
                   <GenderEditRow
                     value={editForm.gender}
-                    onChange={(g) =>
-                      setEditForm((f) => ({ ...f, gender: g }))
-                    }
+                    onChange={(g) => setEditForm((f) => ({ ...f, gender: g }))}
                   />
                   <FieldEdit
                     label="Year"
