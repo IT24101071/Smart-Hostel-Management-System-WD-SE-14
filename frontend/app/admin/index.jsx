@@ -49,6 +49,16 @@ const DASHBOARD_ITEMS = [
     active: true,
   },
   {
+    id: "payments",
+    title: "Payment Management",
+    description: "Verify & confirm student payments",
+    icon: "card-outline",
+    iconColor: "#10B981",
+    iconBg: "#D1FAE5",
+    route: "/admin/payments",
+    active: true,
+  },
+  {
     id: "admins",
     title: "Admin Management",
     description: "Create, update & secure admin accounts",

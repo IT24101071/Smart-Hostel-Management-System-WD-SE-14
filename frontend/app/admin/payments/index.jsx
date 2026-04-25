@@ -18,7 +18,7 @@ import {
   ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import AdminSubHeader from "../../../components/admin/adminSubHeader";
+import AdminSubHeader from "../../../components/admin/AdminSubHeader";
 import { COLORS } from "../../../constants/colors";
 import { API_BASE_URL } from "../../../constants/api";
 import {

@@ -16,7 +16,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import AdminSubHeader, {
   AdminSubHeaderIconButton,
-} from "../../../../components/admin/adminSubHeader";
+} from "../../../../components/admin/AdminSubHeader";
 import RoomDetailRow from "../../../../components/rooms/RoomDetailRow";
 import { COLORS, STATUS_COLORS } from "../../../../constants/colors";
 import {

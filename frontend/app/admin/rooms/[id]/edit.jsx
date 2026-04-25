@@ -13,7 +13,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import AdminSubHeader from "../../../../components/admin/adminSubHeader";
+import AdminSubHeader from "../../../../components/admin/AdminSubHeader";
 import RoomForm from "../../../../components/rooms/RoomForm";
 import { COLORS } from "../../../../constants/colors";
 import {
