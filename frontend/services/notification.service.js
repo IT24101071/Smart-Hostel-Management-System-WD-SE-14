@@ -1,79 +1,5 @@
 import { AxiosError } from "axios";
-import { API_BASE_URL } from "../constants/api";
-import { storage } from "../lib/storage";
-
-function apiUrl(path) {
-  const base = API_BASE_URL.replace(/\/$/, "");
-  const p = path.startsWith("/") ? path : `/${path}`;
-  return `${base}${p}`;
-}
-
-async function fetchApi(path, options = {}) {
-  const {
-    method = "GET",
-    body,
-    timeoutMs = body instanceof FormData ? 120000 : 30000,
-  } = options;
-
-  const token = await storage.getToken();
-  const headers = {};
-  if (token) headers.Authorization = `Bearer ${token}`;
-  if (body && !(body instanceof FormData)) {
-    headers["Content-Type"] = "application/json";
-  }
-
-  const controller = new AbortController();
-  const tid = setTimeout(() => controller.abort(), timeoutMs);
-
-  let res;
-  try {
-    res = await fetch(apiUrl(path), {
-      method,
-      headers,
-      body:
-        body instanceof FormData
-          ? body
-          : body !== undefined
-            ? JSON.stringify(body)
-            : undefined,
-      signal: controller.signal,
-    });
-  } catch (e) {
-    clearTimeout(tid);
-    const msg =
-      e?.name === "AbortError"
-        ? "Request timed out. Please try again."
-        : e?.message || "Network Error";
-    const err = new AxiosError(msg);
-    err.code =
-      e?.name === "AbortError"
-        ? AxiosError.ECONNABORTED
-        : AxiosError.ERR_NETWORK;
-    throw err;
-  }
-
-  clearTimeout(tid);
-
-  const text = await res.text();
-  let data = {};
-  if (text.trim()) {
-    try {
-      data = JSON.parse(text);
-    } catch {
-      data = { message: text };
-    }
-  }
-
-  if (!res.ok) {
-    const err = new AxiosError(
-      data?.message || `Request failed (${res.status})`,
-    );
-    err.response = { status: res.status, data };
-    throw err;
-  }
-
-  return data;
-}
+import apiClient from "../lib/axios";
 
 function mapNotification(raw) {
   return {
@@ -86,23 +12,26 @@ function mapNotification(raw) {
         }
       : null,
     booking: raw.booking?._id ?? raw.booking ?? null,
+    ticket: raw.ticket?._id ?? raw.ticket ?? null,
     meta: raw.meta ?? {},
   };
 }
 
 export async function getMyNotifications() {
-  const data = await fetchApi("/notifications", { method: "GET" });
+  const { data } = await apiClient.get("/notifications");
   return (data.data ?? []).map(mapNotification);
 }
 
 export async function markNotificationRead(notificationId) {
-  return fetchApi(`/notifications/${encodeURIComponent(notificationId)}/read`, {
-    method: "PATCH",
-  });
+  const { data } = await apiClient.patch(
+    `/notifications/${encodeURIComponent(notificationId)}/read`,
+  );
+  return data;
 }
 
 export async function markAllNotificationsRead() {
-  return fetchApi("/notifications/read-all", { method: "PATCH" });
+  const { data } = await apiClient.patch("/notifications/read-all");
+  return data;
 }
 
 export function getNotificationErrorMessage(error) {
