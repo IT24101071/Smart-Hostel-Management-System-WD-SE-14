@@ -15,7 +15,14 @@ const notificationSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ["booking_confirmed", "booking_cancelled"],
+      enum: [
+        "booking_confirmed",
+        "booking_cancelled",
+        "ticket_created",
+        "ticket_assigned",
+        "ticket_status_updated",
+        "ticket_note_added",
+      ],
       required: true,
     },
     title: { type: String, required: true, trim: true },
@@ -23,6 +30,12 @@ const notificationSchema = new mongoose.Schema(
     booking: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Booking",
+      index: true,
+      default: undefined,
+    },
+    ticket: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Ticket",
       index: true,
       default: undefined,
     },
