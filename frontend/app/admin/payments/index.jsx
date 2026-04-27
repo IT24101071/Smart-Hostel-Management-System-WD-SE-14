@@ -217,7 +217,7 @@ export default function PaymentManagement() {
             {item.student?.name || "Unknown Student"}
           </Text>
           <Text style={styles.roomInfo}>
-            Room {item.room?.roomNumber || "—"} ({item.room?.type || "—"})
+            Room {item.room?.roomNumber || "—"} ({item.room?.roomType || "—"})
           </Text>
         </View>
         <View
@@ -390,7 +390,7 @@ export default function PaymentManagement() {
                     <Text style={styles.modalSectionTitle}>Room Info</Text>
                     <Text style={styles.modalText}>
                       Room {selectedPayment.room?.roomNumber || "—"} -{" "}
-                      {selectedPayment.room?.type || "—"}
+                      {selectedPayment.room?.roomType || "—"}
                     </Text>
                     <Text style={styles.modalSubText}>
                       Gender: {selectedPayment.room?.gender || "—"}

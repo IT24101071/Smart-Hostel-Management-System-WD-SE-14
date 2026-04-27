@@ -3,6 +3,11 @@ import {
   getWardenStats,
   searchStaff,
   deleteUser,
+  getStaffList,
+  createStaff,
+  updateStaff,
+  toggleStaffStatus,
+  deleteStaff,
 } from "../controllers/wardenController.js";
 import { protect, wardenOrAdmin } from "../middleware/auth.middleware.js";
 
@@ -12,6 +17,11 @@ router.use(protect, wardenOrAdmin);
 
 router.get("/stats", getWardenStats);
 router.get("/search", searchStaff);
+router.get("/staff", getStaffList);
+router.post("/staff", createStaff);
+router.patch("/staff/:id", updateStaff);
+router.patch("/staff/:id/status", toggleStaffStatus);
+router.delete("/staff/:id", deleteStaff);
 router.delete("/user/:id", deleteUser);
 
 export default router;
