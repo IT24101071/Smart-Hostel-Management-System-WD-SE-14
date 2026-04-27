@@ -7,7 +7,7 @@ export const getAllBookingsWithPayments = async (req, res) => {
   try {
     const bookings = await Booking.find()
       .populate("student", "name email phone")
-      .populate("room", "roomNumber type gender")
+      .populate("room", "roomNumber roomType gender")
       .sort({ createdAt: -1 });
 
     res.status(200).json({
@@ -28,7 +28,7 @@ export const getPendingPayments = async (req, res) => {
   try {
     const bookings = await Booking.find({ paymentStatus: "submitted" })
       .populate("student", "name email phone")
-      .populate("room", "roomNumber type gender")
+      .populate("room", "roomNumber roomType gender")
       .sort({ createdAt: -1 });
 
     res.status(200).json({
@@ -46,10 +46,8 @@ export const getPendingPayments = async (req, res) => {
 
 // Confirm payment (admin action)
 export const confirmPayment = async (req, res) => {
-  console.log(`[API] Confirming payment ${req.params.id}`, req.body);
   try {
     const { id } = req.params;
-    const { paymentStatus, bookingStatus } = req.body;
 
     const booking = await Booking.findById(id);
 
@@ -60,15 +58,16 @@ export const confirmPayment = async (req, res) => {
       });
     }
 
-    // Update payment status
-    if (paymentStatus) {
-      booking.paymentStatus = paymentStatus;
+    if (booking.paymentStatus !== "submitted") {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Only bookings pending bank verification (submitted) can be confirmed here",
+      });
     }
 
-    // Update booking status if provided
-    if (bookingStatus) {
-      booking.bookingStatus = bookingStatus;
-    }
+    booking.paymentStatus = "completed";
+    booking.bookingStatus = "confirmed";
 
     await booking.save();
 
@@ -179,7 +178,7 @@ export const getBookingsByStatus = async (req, res) => {
 
     const bookings = await Booking.find({ paymentStatus: status })
       .populate("student", "name email phone")
-      .populate("room", "roomNumber type gender")
+      .populate("room", "roomNumber roomType gender")
       .sort({ createdAt: -1 });
 
     res.status(200).json({

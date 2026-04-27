@@ -3,6 +3,21 @@ import Notification from "../models/Notification.js";
 import Room from "../models/Room.js";
 import User from "../models/User.js";
 
+/** Matches [frontend/app/student/(tabs)/booking.jsx](first-time booking flow). */
+const FIRST_BOOKING_SECURITY_DEPOSIT_LKR = 1000;
+
+function computeStayDaysFromDates(checkIn, checkOut) {
+  const msPerDay = 86400000;
+  return Math.max(
+    1,
+    Math.floor((checkOut.getTime() - checkIn.getTime()) / msPerDay),
+  );
+}
+
+function computeExpectedRoomFees(pricePerMonth, stayDays) {
+  return Math.round((Number(pricePerMonth) / 30) * stayDays);
+}
+
 function parseDateOrNull(value) {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return null;
@@ -154,6 +169,34 @@ export const createBooking = async (req, res) => {
     ) {
       return res.status(400).json({ message: "Invalid payment amount values" });
     }
+
+    const computedStayDays = computeStayDaysFromDates(checkIn, checkOut);
+    if (parsedStayDays !== computedStayDays) {
+      return res.status(400).json({
+        message: "stayDays must match the selected check-in and check-out dates",
+      });
+    }
+    const expectedRoomFees = computeExpectedRoomFees(
+      room.pricePerMonth,
+      computedStayDays,
+    );
+    const expectedDeposit = FIRST_BOOKING_SECURITY_DEPOSIT_LKR;
+    const expectedTotal = expectedRoomFees + expectedDeposit;
+    if (
+      parsedRoomFees !== expectedRoomFees ||
+      parsedDeposit !== expectedDeposit ||
+      parsedTotal !== expectedTotal
+    ) {
+      return res.status(400).json({
+        message:
+          "Payment amounts must match server-calculated rent and deposit for this booking",
+        details: {
+          expectedRoomFees,
+          expectedDeposit,
+          expectedTotalDue: expectedTotal,
+        },
+      });
+    }
     if (!["card", "bank"].includes(paymentMethod)) {
       return res
         .status(400)
@@ -177,11 +220,11 @@ export const createBooking = async (req, res) => {
       room: room._id,
       checkInDate: checkIn,
       checkOutDate: checkOut,
-      stayDays: parsedStayDays,
-      roomFees: parsedRoomFees,
-      securityDeposit: parsedDeposit,
-      totalDue: parsedTotal,
-      amountPaidByBooker: parsedTotal,
+      stayDays: computedStayDays,
+      roomFees: expectedRoomFees,
+      securityDeposit: expectedDeposit,
+      totalDue: expectedTotal,
+      amountPaidByBooker: expectedTotal,
       paymentMethod,
       paymentStatus: paymentMethod === "bank" ? "submitted" : "completed",
       bookingStatus: paymentMethod === "bank" ? "pending" : "confirmed",
@@ -329,7 +372,7 @@ export const getBookingReceipt = async (req, res) => {
     return res.status(200).json({
       bookingId: booking._id,
       fileName: `booking-receipt-${booking._id}.pdf`,
-      contentType: "application/pdf",
+      contentType: "text/plain",
       content: receiptText,
     });
   } catch (error) {

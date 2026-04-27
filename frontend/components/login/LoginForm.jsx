@@ -54,7 +54,7 @@ export default function LoginForm() {
           return;
         }
         router.replace("/student");
-      } else if (user.role === "warden") {
+      } else if (user.role === "warden" || user.role === "staff") {
         router.replace("/warden");
       } else {
         await storage.clear();

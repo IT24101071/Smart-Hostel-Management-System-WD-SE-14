@@ -1,11 +1,29 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import { StyleSheet } from "react-native";
+import { useEffect, useState } from "react";
 import { COLORS } from "../../../constants/colors";
+import { storage } from "../../../lib/storage";
 
 const ICON_SIZE = 24;
 
 export default function WardenTabsLayout() {
+  const [role, setRole] = useState(null);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      const user = await storage.getUser();
+      if (!mounted) return;
+      setRole(user?.role ?? null);
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const isStaff = role === "staff";
+
   return (
     <Tabs
       screenOptions={{
@@ -38,6 +56,7 @@ export default function WardenTabsLayout() {
         name="staff"
         options={{
           title: "Staff",
+          href: isStaff ? null : undefined,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="people-outline" size={size ?? ICON_SIZE} color={color} />
           ),
@@ -47,6 +66,7 @@ export default function WardenTabsLayout() {
         name="students"
         options={{
           title: "Students",
+          href: isStaff ? null : undefined,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="school-outline" size={size ?? ICON_SIZE} color={color} />
           ),
@@ -56,6 +76,7 @@ export default function WardenTabsLayout() {
         name="rooms"
         options={{
           title: "Rooms",
+          href: isStaff ? null : undefined,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="bed-outline" size={size ?? ICON_SIZE} color={color} />
           ),

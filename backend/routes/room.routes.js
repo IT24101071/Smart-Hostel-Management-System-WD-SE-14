@@ -6,7 +6,7 @@ import {
   updateRoom,
   deleteRoom,
 } from "../controllers/room.controller.js";
-// import { protect, adminOnly } from "../middleware/authMiddleware.js";
+import { protect, adminOnly } from "../middleware/auth.middleware.js";
 import {
   uploadRoomImages,
   handleUploadError,
@@ -19,8 +19,8 @@ router.get("/:id", getRoomById);
 
 router.post(
   "/",
-  // protect,
-  // adminOnly,
+  protect,
+  adminOnly,
   uploadRoomImages.array("images", 5),
   handleUploadError,
   createRoom,
@@ -28,8 +28,8 @@ router.post(
 
 router.put(
   "/:id",
-  // protect,
-  // adminOnly,
+  protect,
+  adminOnly,
   uploadRoomImages.array("images", 5),
   handleUploadError,
   updateRoom,
@@ -37,8 +37,8 @@ router.put(
 
 router.delete(
   "/:id",
-  // protect,
-  // adminOnly,
+  protect,
+  adminOnly,
   deleteRoom,
 );
 

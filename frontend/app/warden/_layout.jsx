@@ -14,7 +14,8 @@ export default function WardenLayout() {
       const userData = await storage.getUser();
       if (!mounted) return;
 
-      if (!userData || userData.role !== "warden") {
+      const role = userData?.role;
+      if (!userData || !["warden", "staff"].includes(role)) {
         await storage.clear();
         setState({ loading: false, ok: false });
         return;
