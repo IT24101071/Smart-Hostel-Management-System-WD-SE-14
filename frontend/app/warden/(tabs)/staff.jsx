@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import WardenAppBar from "../../../components/warden/WardenAppBar";
+import WardenSubHeader from "../../../components/warden/WardenSubHeader";
 import { COLORS } from "../../../constants/colors";
 import { storage } from "../../../lib/storage";
 
@@ -20,6 +21,7 @@ export default function WardenStaffScreen() {
         subtitle="Smart Hostel Management"
         onLogout={handleLogout}
       />
+      <WardenSubHeader title="Staff Management" subtitle="Manage staff assignments" />
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.title}>Staff Page</Text>
         <Text style={styles.subtitle}>View and manage hostel staff assignments.</Text>

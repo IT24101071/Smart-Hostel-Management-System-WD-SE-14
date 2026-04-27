@@ -1,4 +1,5 @@
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import crypto from "crypto";
 import dotenv from "dotenv";
 
@@ -19,7 +20,7 @@ if (
   !R2_BUCKET_NAME ||
   !R2_PUBLIC_URL
 ) {
-  //throw new Error("Missing Cloudflare R2 environment variables");
+  console.warn("[R2] One or more Cloudflare R2 environment variables are missing. Image uploads will fail.");
 }
 
 const r2Client = new S3Client({
@@ -33,8 +34,8 @@ const r2Client = new S3Client({
 
 const sanitizeFilename = (name) => name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
 
-export const uploadBufferToR2 = async (fileBuffer, originalName, mimeType) => {
-  const key = `rooms/${Date.now()}-${crypto.randomUUID()}-${sanitizeFilename(
+export const uploadBufferToR2 = async (fileBuffer, originalName, mimeType, folder = "rooms") => {
+  const key = `${folder}/${Date.now()}-${crypto.randomUUID()}-${sanitizeFilename(
     originalName,
   )}`;
 
@@ -48,6 +49,18 @@ export const uploadBufferToR2 = async (fileBuffer, originalName, mimeType) => {
   );
 
   return `${R2_PUBLIC_URL}/${key}`;
+};
+
+export const extractKeyFromUrl = (url) => {
+  if (!url || !R2_PUBLIC_URL) return null;
+  const prefix = R2_PUBLIC_URL.replace(/\/$/, "") + "/";
+  if (!url.startsWith(prefix)) return null;
+  return url.slice(prefix.length);
+};
+
+export const getPresignedUrl = async (key, expiresInSeconds = 900) => {
+  const command = new GetObjectCommand({ Bucket: R2_BUCKET_NAME, Key: key });
+  return getSignedUrl(r2Client, command, { expiresIn: expiresInSeconds });
 };
 
 export const uploadMultipleToR2 = async (files = []) => {

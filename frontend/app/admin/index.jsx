@@ -41,7 +41,7 @@ const DASHBOARD_ITEMS = [
   {
     id: "tickets",
     title: "Ticket Management",
-    description: "Review and handle student support tickets",
+    description: "Review, assign and manage maintenance complaints",
     icon: "ticket-outline",
     iconColor: COLORS.orange,
     iconBg: COLORS.orangeBg,

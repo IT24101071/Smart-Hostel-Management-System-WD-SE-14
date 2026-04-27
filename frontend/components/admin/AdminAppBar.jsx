@@ -32,11 +32,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingTop: 4,
-    paddingBottom: 16,
+    paddingVertical: 12,
+    minHeight: 72,
   },
   left: {
     flex: 1,
+    justifyContent: "center",
   },
   title: {
     fontFamily: "PublicSans_700Bold",

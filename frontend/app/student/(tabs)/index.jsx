@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -25,6 +26,7 @@ import {
   getMyLatestBooking,
 } from '../../../services/booking.service';
 import { getMyNotifications } from '../../../services/notification.service';
+import { getMyTickets } from '../../../services/ticket.service';
 
 export default function StudentHomeScreen() {
   const router = useRouter();
@@ -33,6 +35,7 @@ export default function StudentHomeScreen() {
   const [loading, setLoading] = useState(true);
   const [screenError, setScreenError] = useState('');
   const [unreadCount, setUnreadCount] = useState(0);
+  const [activeTicketCount, setActiveTicketCount] = useState(0);
 
   const openRooms = useCallback(() => {
     router.push('/student/rooms');
@@ -47,6 +50,10 @@ export default function StudentHomeScreen() {
   }, [router, booking?.id]);
   const goExpenses = useCallback(() => router.push('/student/expenses'), [router]);
   const goSupport = useCallback(() => router.push('/student/support'), [router]);
+  const goIssueHistory = useCallback(
+    () => router.push('/student/support?focus=history'),
+    [router],
+  );
   const goNotifications = useCallback(
     () => router.push('/student/notifications'),
     [router],
@@ -57,6 +64,18 @@ export default function StudentHomeScreen() {
       const notifications = await getMyNotifications();
       const count = notifications.filter((n) => !n.read).length;
       setUnreadCount(count);
+    } catch {
+      // Non-blocking for dashboard render
+    }
+  }, []);
+
+  const refreshTicketCount = useCallback(async () => {
+    try {
+      const tickets = await getMyTickets();
+      const activeCount = tickets.filter((ticket) =>
+        ['Open', 'In Progress'].includes(ticket.status),
+      ).length;
+      setActiveTicketCount(activeCount);
     } catch {
       // Non-blocking for dashboard render
     }
@@ -89,7 +108,8 @@ export default function StudentHomeScreen() {
   useFocusEffect(
     useCallback(() => {
       refreshUnreadCount();
-    }, [refreshUnreadCount]),
+      refreshTicketCount();
+    }, [refreshUnreadCount, refreshTicketCount]),
   );
 
   useEffect(() => {
@@ -226,8 +246,17 @@ export default function StudentHomeScreen() {
               <Text style={styles.bannerText}>{screenError}</Text>
             </View>
           ) : stayCard ? (
-            <View style={styles.stayCard}>
-              <Text style={styles.stayBadge}>Current Stay</Text>
+            <LinearGradient
+              colors={['#204F95', '#0A192F']}
+              locations={[0.351, 0.7115]}
+              start={{ x: 0.5, y: 1 }}
+              end={{ x: 0.5, y: 0 }}
+              style={styles.stayCard}
+            >
+              <View style={styles.stayBadge}>
+                <View style={styles.stayBadgeDot} />
+                <Text style={styles.stayBadgeText}>Current Stay</Text>
+              </View>
               <Text style={styles.stayTitle}>Room No {stayCard.roomNo}</Text>
               <View style={styles.stayRow}>
                 <View style={styles.stayCol}>
@@ -243,7 +272,7 @@ export default function StudentHomeScreen() {
               <Pressable style={styles.manageBtn} onPress={goBooking}>
                 <Text style={styles.manageText}>Manage Stay</Text>
               </Pressable>
-            </View>
+            </LinearGradient>
           ) : (
             <View style={styles.banner}>
               <Text style={styles.bannerText}>No stay found yet. Reserve a room to begin.</Text>
@@ -267,10 +296,10 @@ export default function StudentHomeScreen() {
             <QuickCard
               icon="construct-outline"
               title="Maintenance"
-              value="0"
-              subtitle="No Issues"
+              value={String(activeTicketCount)}
+              subtitle={activeTicketCount > 0 ? "Active Issues" : "No Issues"}
               action="Issue History"
-              onPress={goSupport}
+              onPress={goIssueHistory}
             />
             <QuickCard
               icon="calendar-outline"
@@ -399,21 +428,32 @@ const styles = StyleSheet.create({
     color: COLORS.white,
   },
   stayCard: {
-    backgroundColor: '#0B2D5A',
     borderRadius: 20,
     padding: 16,
     marginBottom: 16,
+    overflow: 'hidden',
   },
   stayBadge: {
     alignSelf: 'flex-start',
-    backgroundColor: 'rgba(37,99,235,0.25)',
-    color: '#CFE2FF',
-    fontFamily: 'PublicSans_600SemiBold',
-    fontSize: 11,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(255,255,255,0.12)',
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 6,
     borderRadius: 999,
     marginBottom: 10,
+  },
+  stayBadgeDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    backgroundColor: '#60A5FA',
+  },
+  stayBadgeText: {
+    fontFamily: 'PublicSans_600SemiBold',
+    fontSize: 13,
+    color: COLORS.primaryLight,
   },
   stayTitle: {
     fontFamily: 'PublicSans_700Bold',
