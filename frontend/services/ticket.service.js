@@ -10,6 +10,15 @@ function mapTicket(raw) {
   };
 }
 
+function hasTicketImages(payload) {
+  const list = Array.isArray(payload?.images)
+    ? payload.images
+    : payload?.image
+      ? [payload.image]
+      : [];
+  return list.some((item) => Boolean(item?.uri));
+}
+
 async function buildTicketFormData(payload) {
   const form = new FormData();
   form.append("category", payload.category);
@@ -53,8 +62,18 @@ async function buildTicketFormData(payload) {
 }
 
 export async function createTicket(payload) {
-  const form = await buildTicketFormData(payload);
-  const { data } = await apiClient.post("/tickets", form);
+  const withImages = hasTicketImages(payload);
+  const requestBody = withImages
+    ? await buildTicketFormData(payload)
+    : {
+        category: payload.category,
+        subject: payload.subject?.trim?.() ?? "",
+        description: payload.description?.trim?.() ?? "",
+        urgency: payload.urgency,
+      };
+  const { data } = await apiClient.post("/tickets", requestBody, {
+    timeout: withImages ? 120000 : undefined,
+  });
   return mapTicket(data.ticket);
 }
 
@@ -62,6 +81,21 @@ export async function getMyTickets() {
   const { data } = await apiClient.get("/tickets/me");
   const list = Array.isArray(data?.data) ? data.data : [];
   return list.map(mapTicket).filter(Boolean);
+}
+
+export async function getMyAssignedTickets(filters = {}) {
+  const params = {
+    status: filters.status || undefined,
+    category: filters.category || undefined,
+    urgency: filters.urgency || undefined,
+    search: filters.search?.trim() || undefined,
+  };
+  const { data } = await apiClient.get("/tickets/assigned/me", { params });
+  const list = Array.isArray(data?.data) ? data.data : [];
+  return {
+    tickets: list.map(mapTicket).filter(Boolean),
+    meta: data?.meta || {},
+  };
 }
 
 export async function getAllTickets(filters = {}) {
@@ -96,8 +130,13 @@ export async function updateTicketStatus(id, payload) {
 }
 
 export async function assignTicket(id, payload) {
+  const assignedToRaw = payload.assignedTo;
+  const assignedTo =
+    assignedToRaw === null || assignedToRaw === undefined || String(assignedToRaw).trim() === ""
+      ? ""
+      : String(assignedToRaw).trim();
   const { data } = await apiClient.patch(`/tickets/${encodeURIComponent(id)}/assign`, {
-    assignedTo: payload.assignedTo,
+    assignedTo,
     note: payload.note?.trim() || "",
   });
   return mapTicket(data?.ticket);
@@ -113,6 +152,21 @@ export async function addTicketNote(id, payload) {
 export async function getTicketImageUrls(id) {
   const { data } = await apiClient.get(`/tickets/${encodeURIComponent(id)}/image-urls`);
   return Array.isArray(data?.images) ? data.images : [];
+}
+
+export async function getStaffOptions() {
+  const { data } = await apiClient.get("/warden/staff", {
+    params: { page: 1, limit: 100 },
+  });
+  const list = Array.isArray(data?.data) ? data.data : [];
+  return list
+    .map((item) => ({
+      id: item?.id ?? item?._id,
+      name: item?.name ?? "",
+      email: item?.email ?? "",
+      isApproved: Boolean(item?.isApproved),
+    }))
+    .filter((item) => Boolean(item.id));
 }
 
 export function getTicketErrorMessage(error) {

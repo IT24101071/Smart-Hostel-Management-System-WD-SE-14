@@ -4,26 +4,21 @@ import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { COLORS } from "../../constants/colors";
 import { storage } from "../../lib/storage";
 
-export default function WardenLayout() {
+export default function StaffLayout() {
   const [state, setState] = useState({ loading: true, ok: false });
 
   useEffect(() => {
     let mounted = true;
-
     (async () => {
-      const userData = await storage.getUser();
+      const user = await storage.getUser();
       if (!mounted) return;
-
-      const role = userData?.role;
-      if (!userData || !["warden", "staff"].includes(role)) {
+      if (!user || user.role !== "staff") {
         await storage.clear();
         setState({ loading: false, ok: false });
         return;
       }
-
       setState({ loading: false, ok: true });
     })();
-
     return () => {
       mounted = false;
     };
@@ -43,15 +38,7 @@ export default function WardenLayout() {
 
   return (
     <View style={styles.root}>
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: {
-            flex: 1,
-            backgroundColor: COLORS.background,
-          },
-        }}
-      />
+      <Stack screenOptions={{ headerShown: false }} />
     </View>
   );
 }

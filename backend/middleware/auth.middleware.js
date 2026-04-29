@@ -28,3 +28,9 @@ export const wardenOrAdmin = (req, res, next) => {
     return res.status(403).json({ message: "Access denied" });
   next();
 };
+
+export const staffWardenOrAdmin = (req, res, next) => {
+  if (!["admin", "warden", "staff"].includes(req.user.role))
+    return res.status(403).json({ message: "Access denied" });
+  next();
+};

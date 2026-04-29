@@ -10,6 +10,9 @@ import User from "../models/User.js";
 import { uploadBufferToR2, extractKeyFromUrl, getPresignedUrl } from "../utils/r2Upload.js";
 
 const STAFF_ROLES = ["admin", "warden"];
+const MANAGER_ROLES = ["admin", "warden"];
+const STAFF_WORKER_ROLE = "staff";
+const ASSIGNEE_ROLES = ["staff"];
 const ALLOWED_TRANSITIONS = {
   Open: ["In Progress"],
   "In Progress": ["Resolved"],
@@ -30,6 +33,21 @@ function normalizeRole(role) {
 
 function sanitizeText(value) {
   return String(value ?? "").trim();
+}
+
+function isManagerRole(role) {
+  return MANAGER_ROLES.includes(normalizeRole(role));
+}
+
+function isStaffWorkerRole(role) {
+  return normalizeRole(role) === STAFF_WORKER_ROLE;
+}
+
+function isTicketAssignedToUser(ticket, userId) {
+  const assignedValue = ticket?.assignedTo;
+  const assignedId = assignedValue?._id ?? assignedValue?.id ?? assignedValue;
+  if (!assignedId || !userId) return false;
+  return String(assignedId) === String(userId);
 }
 
 function respondControllerError(error, res) {
@@ -382,6 +400,37 @@ export const getAllTickets = async (req, res) => {
   }
 };
 
+export const getAssignedTicketsForStaff = async (req, res) => {
+  try {
+    if (!requireAuthenticatedUser(req, res)) return;
+    if (normalizeRole(req.user.role) !== "staff") {
+      return res.status(403).json({ message: "Staff access only" });
+    }
+
+    const { filter, error } = parseTicketFilters(req.query);
+    if (error) {
+      return res.status(400).json({ message: error });
+    }
+
+    const tickets = await populateTicketQuery(
+      Ticket.find({ ...filter, assignedTo: req.user.id }),
+    ).sort({
+      updatedAt: -1,
+    });
+
+    return res.status(200).json({
+      data: tickets.map(toTicketDto),
+      meta: {
+        categories: TICKET_CATEGORIES,
+        urgencyLevels: TICKET_URGENCY,
+        statuses: TICKET_STATUSES,
+      },
+    });
+  } catch (error) {
+    return respondControllerError(error, res);
+  }
+};
+
 export const getTicketById = async (req, res) => {
   try {
     if (!requireAuthenticatedUser(req, res)) return;
@@ -396,8 +445,9 @@ export const getTicketById = async (req, res) => {
     }
 
     const isOwner = String(ticket.createdBy?._id) === String(req.user.id);
-    const isStaff = STAFF_ROLES.includes(normalizeRole(req.user.role));
-    if (!isOwner && !isStaff) {
+    const isManager = isManagerRole(req.user.role);
+    const isAssignee = isTicketAssignedToUser(ticket, req.user.id);
+    if (!isOwner && !isManager && !isAssignee) {
       return res.status(403).json({ message: "Access denied" });
     }
 
@@ -410,9 +460,6 @@ export const getTicketById = async (req, res) => {
 export const updateTicketStatus = async (req, res) => {
   try {
     if (!requireAuthenticatedUser(req, res)) return;
-    if (!STAFF_ROLES.includes(normalizeRole(req.user.role))) {
-      return res.status(403).json({ message: "Access denied" });
-    }
 
     const status = sanitizeText(req.body?.status);
     const note = sanitizeText(req.body?.note);
@@ -424,6 +471,17 @@ export const updateTicketStatus = async (req, res) => {
     const ticket = await Ticket.findById(req.params.id);
     if (!ticket) {
       return res.status(404).json({ message: "Ticket not found" });
+    }
+    const isManager = isManagerRole(req.user.role);
+    const isAssignee = isTicketAssignedToUser(ticket, req.user.id);
+    const isStaffWorker = isStaffWorkerRole(req.user.role);
+    if (!isManager && !isAssignee) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    if (isManager && ticket.assignedTo && status !== "Resolved") {
+      return res.status(403).json({
+        message: "Assigned staff controls this ticket. Managers can only mark it as Resolved.",
+      });
     }
 
     if (ticket.status === status) {
@@ -444,7 +502,9 @@ export const updateTicketStatus = async (req, res) => {
 
     const previousStatus = ticket.status;
     ticket.status = status;
-    ticket.assignedTo = req.user.id;
+    if (isAssignee && !isManager) {
+      ticket.assignedTo = req.user.id;
+    }
     ticket.statusLog.push({
       status,
       changedBy: req.user.id,
@@ -473,14 +533,6 @@ export const assignTicket = async (req, res) => {
 
     const assignedTo = sanitizeText(req.body?.assignedTo);
     const note = sanitizeText(req.body?.note);
-    if (!assignedTo) {
-      return res.status(400).json({ message: "assignedTo is required" });
-    }
-
-    const assignee = await User.findById(assignedTo).select("role name email");
-    if (!assignee || !STAFF_ROLES.includes(assignee.role)) {
-      return res.status(400).json({ message: "Assigned user must be a warden or admin" });
-    }
 
     const ticket = await Ticket.findById(req.params.id);
     if (!ticket) {
@@ -488,15 +540,29 @@ export const assignTicket = async (req, res) => {
     }
 
     const previousStatus = ticket.status;
-    ticket.assignedTo = assignee._id;
-    if (ticket.status === "Open") {
-      ticket.status = "In Progress";
+    if (!assignedTo) {
+      ticket.assignedTo = undefined;
+      ticket.statusLog.push({
+        status: ticket.status,
+        changedBy: req.user.id,
+        note: note || "Ticket assignee removed",
+      });
+    } else {
+      const assignee = await User.findById(assignedTo).select("role name email");
+      if (!assignee || !ASSIGNEE_ROLES.includes(normalizeRole(assignee.role))) {
+        return res.status(400).json({ message: "Assigned user must be a staff member" });
+      }
+
+      ticket.assignedTo = assignee._id;
+      if (ticket.status === "Open") {
+        ticket.status = "In Progress";
+      }
+      ticket.statusLog.push({
+        status: ticket.status,
+        changedBy: req.user.id,
+        note: note || `Ticket assigned to ${assignee.name}`,
+      });
     }
-    ticket.statusLog.push({
-      status: ticket.status,
-      changedBy: req.user.id,
-      note: note || `Ticket assigned to ${assignee.name}`,
-    });
     await ticket.save();
 
     const updated = await populateTicketQuery(Ticket.findById(ticket._id));
@@ -517,15 +583,16 @@ export const getTicketImageUrls = async (req, res) => {
     if (!requireAuthenticatedUser(req, res)) return;
 
     const ticket = await Ticket.findById(req.params.id).select(
-      "images imageUrl imageName createdBy",
+      "images imageUrl imageName createdBy assignedTo",
     );
     if (!ticket) {
       return res.status(404).json({ message: "Ticket not found" });
     }
 
     const isOwner = String(ticket.createdBy) === String(req.user.id);
-    const isStaff = STAFF_ROLES.includes(normalizeRole(req.user.role));
-    if (!isOwner && !isStaff) {
+    const isManager = isManagerRole(req.user.role);
+    const isAssignee = isTicketAssignedToUser(ticket, req.user.id);
+    if (!isOwner && !isManager && !isAssignee) {
       return res.status(403).json({ message: "Access denied" });
     }
 
@@ -573,8 +640,9 @@ export const addTicketNote = async (req, res) => {
     }
 
     const isOwner = String(ticket.createdBy?._id) === String(req.user.id);
-    const isStaff = STAFF_ROLES.includes(normalizeRole(req.user.role));
-    if (!isOwner && !isStaff) {
+    const isManager = isManagerRole(req.user.role);
+    const isAssignee = isTicketAssignedToUser(ticket, req.user.id);
+    if (!isOwner && !isManager && !isAssignee) {
       return res.status(403).json({ message: "Access denied" });
     }
 

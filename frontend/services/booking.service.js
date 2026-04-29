@@ -82,6 +82,14 @@ export async function createBooking(payload) {
   });
 }
 
+function mimeFromReceiptFilename(filename) {
+  const lower = String(filename ?? "").toLowerCase();
+  if (lower.endsWith(".pdf")) return "application/pdf";
+  if (lower.endsWith(".png")) return "image/png";
+  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+  return "application/octet-stream";
+}
+
 export async function uploadReceipt(fileUri) {
   if (!fileUri) return null;
 
@@ -89,8 +97,7 @@ export async function uploadReceipt(fileUri) {
   
   // For Expo/React Native, we need to construct the file object
   const filename = fileUri.split("/").pop();
-  const match = /\.(\w+)$/.exec(filename);
-  const type = match ? `image/${match[1] === 'pdf' ? 'pdf' : match[1]}` : `image`;
+  const type = mimeFromReceiptFilename(filename);
 
   formData.append("receipt", {
     uri: fileUri,

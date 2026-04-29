@@ -4,21 +4,23 @@ import {
   assignTicket,
   createTicket,
   getAllTickets,
+  getAssignedTicketsForStaff,
   getMyTickets,
   getTicketById,
   getTicketImageUrls,
   updateTicketStatus,
 } from "../controllers/ticket.controller.js";
-import { protect, wardenOrAdmin } from "../middleware/auth.middleware.js";
+import { protect, staffWardenOrAdmin, wardenOrAdmin } from "../middleware/auth.middleware.js";
 import { handleUploadError, uploadRoomImages } from "../middleware/r2.middleware.js";
 
 const router = express.Router();
 
 router.get("/me", protect, getMyTickets);
+router.get("/assigned/me", protect, getAssignedTicketsForStaff);
 router.get("/", protect, wardenOrAdmin, getAllTickets);
 router.get("/:id", protect, getTicketById);
 router.get("/:id/image-urls", protect, getTicketImageUrls);
-router.patch("/:id/status", protect, wardenOrAdmin, updateTicketStatus);
+router.patch("/:id/status", protect, staffWardenOrAdmin, updateTicketStatus);
 router.patch("/:id/assign", protect, wardenOrAdmin, assignTicket);
 router.post("/:id/notes", protect, addTicketNote);
 router.post("/", protect, uploadRoomImages.array("images", 5), handleUploadError, createTicket);
