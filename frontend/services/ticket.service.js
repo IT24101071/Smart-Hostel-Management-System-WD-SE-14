@@ -132,25 +132,35 @@ export async function updateTicketStatus(id, payload) {
 export async function assignTicket(id, payload) {
   const assignedToRaw = payload.assignedTo;
   const assignedTo =
-    assignedToRaw === null || assignedToRaw === undefined || String(assignedToRaw).trim() === ""
+    assignedToRaw === null ||
+    assignedToRaw === undefined ||
+    String(assignedToRaw).trim() === ""
       ? ""
       : String(assignedToRaw).trim();
-  const { data } = await apiClient.patch(`/tickets/${encodeURIComponent(id)}/assign`, {
-    assignedTo,
-    note: payload.note?.trim() || "",
-  });
+  const { data } = await apiClient.patch(
+    `/tickets/${encodeURIComponent(id)}/assign`,
+    {
+      assignedTo,
+      note: payload.note?.trim() || "",
+    },
+  );
   return mapTicket(data?.ticket);
 }
 
 export async function addTicketNote(id, payload) {
-  const { data } = await apiClient.post(`/tickets/${encodeURIComponent(id)}/notes`, {
-    note: payload.note?.trim() || "",
-  });
+  const { data } = await apiClient.post(
+    `/tickets/${encodeURIComponent(id)}/notes`,
+    {
+      note: payload.note?.trim() || "",
+    },
+  );
   return mapTicket(data?.ticket);
 }
 
 export async function getTicketImageUrls(id) {
-  const { data } = await apiClient.get(`/tickets/${encodeURIComponent(id)}/image-urls`);
+  const { data } = await apiClient.get(
+    `/tickets/${encodeURIComponent(id)}/image-urls`,
+  );
   return Array.isArray(data?.images) ? data.images : [];
 }
 

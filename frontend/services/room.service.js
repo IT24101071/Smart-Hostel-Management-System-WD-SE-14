@@ -1,211 +1,123 @@
 import { AxiosError } from "axios";
 import { Platform } from "react-native";
-import { API_BASE_URL } from "../constants/api";
-import { storage } from "../lib/storage";
-
+import apiClient from "../lib/axios";
 function mapRoom(r) {
   const { _id, ...rest } = r;
   return { ...rest, id: _id };
 }
 
-function apiUrl(path) {
-  const base = API_BASE_URL.replace(/\/$/, "");
-  const p = path.startsWith("/") ? path : `/${path}`;
-  return `${base}${p}`;
-}
-
-async function fetchApi(path, options = {}) {
-  const {
-    method = "GET",
-    body,
-    timeoutMs = body instanceof FormData ? 120000 : 30000,
-  } = options;
-
-  const token = await storage.getToken();
-  const headers = {};
-  if (token) headers.Authorization = `Bearer ${token}`;
-  if (body && !(body instanceof FormData)) {
-    headers["Content-Type"] = "application/json";
-  }
-
-  const controller = new AbortController();
-  const tid = setTimeout(() => controller.abort(), timeoutMs);
-
-  let res;
-  try {
-    res = await fetch(apiUrl(path), {
-      method,
-      headers,
-      body:
-        body instanceof FormData
-          ? body
-          : body !== undefined
-            ? JSON.stringify(body)
-            : undefined,
-      signal: controller.signal,
-    });
-  } catch (e) {
-    clearTimeout(tid);
-    const msg =
-      e?.name === "AbortError"
-        ? "Request timed out. Please try again."
-        : e?.message || "Network Error";
-    const err = new AxiosError(msg);
-    err.code =
-      e?.name === "AbortError"
-        ? AxiosError.ECONNABORTED
-        : AxiosError.ERR_NETWORK;
-    throw err;
-  }
-
-  clearTimeout(tid);
-
-  const text = await res.text();
-  let data = {};
-  if (text.trim()) {
-    try {
-      data = JSON.parse(text);
-    } catch {
-      data = { message: text };
-    }
-  }
-
-  if (!res.ok) {
-    const err = new AxiosError(
-      data?.message || `Request failed (${res.status})`,
-    );
-    err.response = { status: res.status, data };
-    throw err;
-  }
-
-  return data;
-}
-
 export async function getRooms(params = { limit: 100 }) {
-  const q = new URLSearchParams();
-  if (params.limit != null) q.set("limit", String(params.limit));
-  if (params.page != null) q.set("page", String(params.page));
-  if (params.roomType) q.set("roomType", params.roomType);
-  if (params.availabilityStatus)
-    q.set("availabilityStatus", params.availabilityStatus);
-  if (params.gender) q.set("gender", params.gender);
-  const qs = q.toString();
-  const path = qs ? `/rooms?${qs}` : "/rooms";
-
-  const data = await fetchApi(path, { method: "GET" });
-
-  let raw = data?.data;
-  if (raw === undefined && Array.isArray(data)) {
-    raw = data;
-  }
-  if (!Array.isArray(raw)) {
-    console.warn(
-      "[room.service] getRooms: expected { data: Room[] } from /api/rooms. Got unexpected body — check API_BASE_URL and that the backend is running.",
-      typeof raw,
-    );
-    raw = [];
-  }
+  const { data } = await apiClient.get("/rooms", { params });
 
   return {
-    rooms: raw.map(mapRoom),
-    pagination: data?.pagination,
+    rooms: data.data.map(mapRoom),
+    pagination: data.pagination,
   };
 }
 
 export async function getRoomById(id) {
-  const data = await fetchApi(`/rooms/${encodeURIComponent(id)}`, {
-    method: "GET",
-  });
+  const { data } = await apiClient.get(`/rooms/${id}`);
   return mapRoom(data);
 }
 
 export async function createRoom(values) {
   if (values.imageUris?.length) {
-    const form = await buildFormData(
+    const form = buildFormData(
       {
         roomNumber: values.roomNumber.trim(),
         roomType: values.roomType,
-        gender: values.gender,
         pricePerMonth: String(Number(values.pricePerMonth)),
         capacity: String(values.capacity),
         description: values.description.trim(),
       },
       values.imageUris,
     );
-    const data = await fetchApi("/rooms", { method: "POST", body: form });
+    const { data } = await apiClient.post("/rooms", form);
     return mapRoom(data);
   }
 
-  const data = await fetchApi("/rooms", {
-    method: "POST",
-    body: {
-      roomNumber: values.roomNumber.trim(),
-      roomType: values.roomType,
-      gender: values.gender,
-      pricePerMonth: Number(values.pricePerMonth),
-      capacity: values.capacity,
-      description: values.description.trim(),
-    },
+  const { data } = await apiClient.post("/rooms", {
+    roomNumber: values.roomNumber.trim(),
+    roomType: values.roomType,
+    pricePerMonth: Number(values.pricePerMonth),
+    capacity: values.capacity,
+    description: values.description.trim(),
   });
   return mapRoom(data);
 }
 
 export async function updateRoom(id, values) {
-  const imageUris = values.imageUris ?? [];
-  const keptImageUrls = imageUris.filter(
-    (item) =>
-      typeof item === "string" &&
-      (item.startsWith("http://") || item.startsWith("https://")),
-  );
+  console.log("[room.service] updateRoom - imageUris:", values.imageUris);
 
-  const form = await buildFormData(
-    {
-      roomType: values.roomType,
-      gender: values.gender,
-      pricePerMonth: String(Number(values.pricePerMonth)),
-      capacity: String(values.capacity),
-      description: values.description.trim(),
-      availabilityStatus: values.availabilityStatus,
-      keptImageUrls: JSON.stringify(keptImageUrls),
-    },
-    imageUris,
+  if (values.imageUris?.length) {
+    console.log(
+      "[room.service] Building FormData with",
+      values.imageUris.length,
+      "images",
+    );
+    const form = buildFormData(
+      {
+        roomType: values.roomType,
+        pricePerMonth: String(Number(values.pricePerMonth)),
+        capacity: String(values.capacity),
+        description: values.description.trim(),
+        availabilityStatus: values.availabilityStatus,
+        imageAction: "append",
+      },
+      values.imageUris,
+    );
+    const { data } = await apiClient.put(`/rooms/${id}`, form);
+    return mapRoom(data);
+  }
+
+  console.log(
+    "[room.service] No images to upload, sending data without FormData",
   );
-  const data = await fetchApi(`/rooms/${encodeURIComponent(id)}`, {
-    method: "PUT",
-    body: form,
+  const { data } = await apiClient.put(`/rooms/${id}`, {
+    roomType: values.roomType,
+    pricePerMonth: Number(values.pricePerMonth),
+    capacity: values.capacity,
+    description: values.description.trim(),
+    availabilityStatus: values.availabilityStatus,
   });
   return mapRoom(data);
 }
 
 export async function deleteRoom(id) {
-  await fetchApi(`/rooms/${encodeURIComponent(id)}`, { method: "DELETE" });
+  await apiClient.delete(`/rooms/${id}`);
 }
 
-async function buildFormData(fields, imageUris) {
+function buildFormData(fields, imageUris) {
   const form = new FormData();
 
   for (const [key, value] of Object.entries(fields)) {
     if (value !== undefined && value !== "") form.append(key, value);
   }
 
+  // Only add images if there are any
   if (imageUris && imageUris.length > 0) {
-    for (let index = 0; index < imageUris.length; index++) {
-      const item = imageUris[index];
+    console.log("[buildFormData] Processing", imageUris.length, "images");
+    imageUris.forEach((item, index) => {
+      // Handle both asset objects (web) and string URIs (native)
       const uri = typeof item === "string" ? item : item.uri;
 
+      // Skip if URI is a string starting with 'http' (already uploaded image from API)
       if (
         typeof uri === "string" &&
         (uri.startsWith("http://") || uri.startsWith("https://"))
       ) {
-        continue;
+        console.log("[buildFormData] Skipping URL:", uri);
+        return;
       }
 
       let filename, mimeType;
 
+      // On web, we have the full asset object with type info
       if (Platform.OS === "web" && item.mimeType) {
         filename = item.fileName || item.filename || "photo.jpg";
-        mimeType = item.mimeType || "image/jpeg";
+        mimeType = item.mimeType || "image/jpeg"; // Use mimeType property, not type
       } else {
+        // On native, extract from URI
         filename = uri.split("/").pop() ?? "photo.jpg";
         const ext = filename.split(".").pop()?.toLowerCase() ?? "jpg";
         mimeType =
@@ -216,23 +128,23 @@ async function buildFormData(fields, imageUris) {
               : "image/jpeg";
       }
 
-      if (Platform.OS === "web" && uri.startsWith("blob:")) {
-        try {
-          const response = await fetch(uri);
-          const blob = await response.blob();
-          const file = new File([blob], filename, { type: mimeType });
-          form.append("images", file);
-        } catch (error) {
-          console.error(`[buildFormData] blob to File:`, error);
-        }
-      } else {
-        form.append("images", {
-          uri,
-          name: filename,
-          type: mimeType,
-        });
-      }
-    }
+      console.log(
+        `[buildFormData] Adding image ${index + 1}:`,
+        filename,
+        mimeType,
+      );
+
+      // IMPORTANT: On Android, use URI directly instead of blob
+      // to avoid "Network request failed" errors. See:
+      // https://github.com/expo/expo/issues/8323
+      form.append("images", {
+        uri,
+        name: filename,
+        type: mimeType,
+      });
+    });
+  } else {
+    console.log("[buildFormData] No images to add");
   }
 
   return form;
@@ -242,13 +154,7 @@ export function getRoomErrorMessage(error) {
   if (error instanceof AxiosError) {
     const serverMessage = error.response?.data?.message;
     if (serverMessage) return serverMessage;
-    if (!error.response) {
-      if (error.code === "ECONNABORTED")
-        return "Request timed out. Please try again.";
-      if (error.code === "ERR_NETWORK" || error.message === "Network Error")
-        return "Could not reach the server. Check Wi‑Fi and that the API is running.";
-      return "Unable to connect. Please check your network.";
-    }
+    if (!error.response) return "Unable to connect. Please check your network.";
     if (error.code === "ECONNABORTED")
       return "Request timed out. Please try again.";
   }
