@@ -399,7 +399,6 @@ export default function TicketManagementScreen({
           status: activeStatus || undefined,
           category: activeCategory || undefined,
           urgency: activeUrgency || undefined,
-          search: searchQuery,
         });
         setTickets(list);
       } catch (error) {
@@ -410,7 +409,7 @@ export default function TicketManagementScreen({
         else setLoading(false);
       }
     },
-    [activeStatus, activeCategory, activeUrgency, searchQuery, staffOnly],
+    [activeStatus, activeCategory, activeUrgency, staffOnly],
   );
 
   useEffect(() => {
@@ -506,6 +505,11 @@ export default function TicketManagementScreen({
 
   const applySearch = () => {
     setSearchQuery(searchInput.trim());
+  };
+
+  const handleSearchTextChange = (value) => {
+    setSearchInput(value);
+    setSearchQuery(value.trim());
   };
 
   const setScope = (scope) => {
@@ -708,7 +712,7 @@ export default function TicketManagementScreen({
           <TextInput
             style={styles.searchInput}
             value={searchInput}
-            onChangeText={setSearchInput}
+            onChangeText={handleSearchTextChange}
             placeholder="Search tickets"
             returnKeyType="search"
             onSubmitEditing={applySearch}

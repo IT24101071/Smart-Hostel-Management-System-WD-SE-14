@@ -3,6 +3,7 @@ import User from "../models/User.js";
 import bcrypt from "bcryptjs";
 
 const STAFF_ROLE = "staff";
+const STUDENT_ROLE = "student";
 const SEARCH_LIMIT_MAX = 100;
 const DEFAULT_PAGE_SIZE = 20;
 
@@ -123,6 +124,56 @@ export const getStaffList = async (req, res) => {
                 totalStaff,
                 activeStaff: activeCount,
                 inactiveStaff: Math.max(0, totalStaff - activeCount),
+            },
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    List students with search/filter/pagination
+export const getStudentList = async (req, res) => {
+    try {
+        const q = String(req.query?.q ?? "").trim();
+        const active = String(req.query?.active ?? "").trim().toLowerCase();
+        const { page, limit, skip } = getPaginationParams(req.query);
+
+        const filter = { role: STUDENT_ROLE };
+        if (q) {
+            const safe = escapeRegex(q).slice(0, 120);
+            filter.$or = [
+                { name: { $regex: safe, $options: "i" } },
+                { email: { $regex: safe, $options: "i" } },
+                { studentId: { $regex: safe, $options: "i" } },
+            ];
+        }
+        if (active === "true") filter.isApproved = true;
+        if (active === "false") filter.isApproved = false;
+
+        const [total, users] = await Promise.all([
+            User.countDocuments(filter),
+            User.find(filter)
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .select("-password"),
+        ]);
+
+        const [totalStudents, activeStudents] = await Promise.all([
+            User.countDocuments({ role: STUDENT_ROLE }),
+            User.countDocuments({ role: STUDENT_ROLE, isApproved: true }),
+        ]);
+
+        res.json({
+            data: users.map(getSafeUser),
+            meta: {
+                page,
+                limit,
+                total,
+                totalPages: Math.max(1, Math.ceil(total / limit)),
+                totalStudents,
+                activeStudents,
+                inactiveStudents: Math.max(0, totalStudents - activeStudents),
             },
         });
     } catch (error) {
