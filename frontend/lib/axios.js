@@ -53,16 +53,23 @@ apiClient.interceptors.request.use(
 
 apiClient.interceptors.response.use(
   (response) => {
+    if (response.config?.__retriedOnNextHost && response.config?.baseURL) {
+      // Persist only a proven-working host, not a speculative retry target.
+      apiClient.defaults.baseURL = response.config.baseURL;
+    }
     console.log(`[API] ${response.status} ← ${response.config.url}`);
     return response;
   },
   async (error) => {
     const hasNoResponse = !error.response;
+    const method = String(error.config?.method || "get").toLowerCase();
+    const isSafeToRetry = method === "get" || method === "head";
     const canRetryOnNextHost =
       hasNoResponse &&
       error.code === "ERR_NETWORK" &&
       error.config &&
-      !error.config.__retriedOnNextHost;
+      !error.config.__retriedOnNextHost &&
+      isSafeToRetry;
 
     if (canRetryOnNextHost) {
       const currentBase = error.config.baseURL || apiClient.defaults.baseURL;
@@ -71,7 +78,6 @@ apiClient.interceptors.response.use(
         console.warn(
           `[API] Network error on ${currentBase}. Retrying via ${nextBase}`,
         );
-        apiClient.defaults.baseURL = nextBase;
         const retryConfig = {
           ...error.config,
           baseURL: nextBase,

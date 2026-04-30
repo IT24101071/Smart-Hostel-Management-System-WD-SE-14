@@ -5,7 +5,7 @@ import { COLORS } from "../../constants/colors";
 import { storage } from "../../lib/storage";
 
 export default function WardenLayout() {
-  const [state, setState] = useState({ loading: true, ok: false });
+  const [state, setState] = useState({ loading: true, ok: false, role: "" });
 
   useEffect(() => {
     let mounted = true;
@@ -15,13 +15,15 @@ export default function WardenLayout() {
       if (!mounted) return;
 
       const role = userData?.role;
-      if (!userData || !["warden", "staff"].includes(role)) {
-        await storage.clear();
-        setState({ loading: false, ok: false });
+      if (!userData || role !== "warden") {
+        if (!userData || !role) {
+          await storage.clear();
+        }
+        setState({ loading: false, ok: false, role: role || "" });
         return;
       }
 
-      setState({ loading: false, ok: true });
+      setState({ loading: false, ok: true, role });
     })();
 
     return () => {
@@ -38,6 +40,9 @@ export default function WardenLayout() {
   }
 
   if (!state.ok) {
+    if (state.role === "staff") {
+      return <Redirect href="/staff" />;
+    }
     return <Redirect href="/" />;
   }
 

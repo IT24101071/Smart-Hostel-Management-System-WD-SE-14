@@ -2,7 +2,7 @@ import { AxiosError } from "axios";
 import apiClient from "../lib/axios";
 
 export async function getAllPayments() {
-  const { data } = await apiClient.get("/payments");
+  const { data } = await apiClient.get("/payments/bookings");
   return data ?? {};
 }
 
@@ -17,14 +17,15 @@ export async function getPaymentStats() {
 }
 
 export async function getPaymentsByStatus(status) {
-  const { data } = await apiClient.get("/payments", {
-    params: { status: String(status ?? "").trim() || undefined },
-  });
+  const normalized = String(status ?? "").trim();
+  const { data } = await apiClient.get(
+    `/payments/status/${encodeURIComponent(normalized)}`,
+  );
   return data ?? {};
 }
 
 export async function confirmPayment(id, payload = {}) {
-  const { data } = await apiClient.patch(
+  const { data } = await apiClient.put(
     `/payments/${encodeURIComponent(String(id))}/confirm`,
     payload,
   );
@@ -32,7 +33,7 @@ export async function confirmPayment(id, payload = {}) {
 }
 
 export async function rejectPayment(id, reason) {
-  const { data } = await apiClient.patch(
+  const { data } = await apiClient.put(
     `/payments/${encodeURIComponent(String(id))}/reject`,
     { reason: reason ?? "Payment rejected by admin" },
   );

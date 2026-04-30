@@ -27,6 +27,7 @@ import {
 } from '../../../services/booking.service';
 import { getMyNotifications } from '../../../services/notification.service';
 import { getMyTickets } from '../../../services/ticket.service';
+import { getMyVisitorLogs } from '../../../services/visitor.service';
 
 export default function StudentHomeScreen() {
   const router = useRouter();
@@ -36,6 +37,7 @@ export default function StudentHomeScreen() {
   const [screenError, setScreenError] = useState('');
   const [unreadCount, setUnreadCount] = useState(0);
   const [activeTicketCount, setActiveTicketCount] = useState(0);
+  const [visitorCount, setVisitorCount] = useState(0);
 
   const openRooms = useCallback(() => {
     router.push('/student/rooms');
@@ -58,6 +60,10 @@ export default function StudentHomeScreen() {
     () => router.push('/student/notifications'),
     [router],
   );
+  const goVisitorHistory = useCallback(
+    () => router.push('/student/visitor-history'),
+    [router],
+  );
 
   const refreshUnreadCount = useCallback(async () => {
     try {
@@ -76,6 +82,15 @@ export default function StudentHomeScreen() {
         ['Open', 'In Progress'].includes(ticket.status),
       ).length;
       setActiveTicketCount(activeCount);
+    } catch {
+      // Non-blocking for dashboard render
+    }
+  }, []);
+
+  const refreshVisitorCount = useCallback(async () => {
+    try {
+      const { meta } = await getMyVisitorLogs({ limit: 100, page: 1 });
+      setVisitorCount(Number(meta?.total ?? 0));
     } catch {
       // Non-blocking for dashboard render
     }
@@ -109,7 +124,8 @@ export default function StudentHomeScreen() {
     useCallback(() => {
       refreshUnreadCount();
       refreshTicketCount();
-    }, [refreshUnreadCount, refreshTicketCount]),
+      refreshVisitorCount();
+    }, [refreshUnreadCount, refreshTicketCount, refreshVisitorCount]),
   );
 
   useEffect(() => {
@@ -312,10 +328,10 @@ export default function StudentHomeScreen() {
             <QuickCard
               icon="people-outline"
               title="Visitor Log"
-              value="0 Person"
+              value={`${visitorCount} Person${visitorCount === 1 ? '' : 's'}`}
               subtitle="Visited Per Stay"
               action="History"
-              onPress={goSupport}
+              onPress={goVisitorHistory}
             />
           </View>
 

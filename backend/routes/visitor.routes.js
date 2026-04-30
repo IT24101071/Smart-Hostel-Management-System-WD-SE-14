@@ -6,12 +6,14 @@ import {
   updateVisitor,
   getVisitors,
   getRoomStudents,
+  getMyVisitorLogs,
 } from "../controllers/visitor.controller.js";
 import { protect, wardenOrAdmin } from "../middleware/auth.middleware.js";
 import { handleUploadError, uploadRoomImages } from "../middleware/r2.middleware.js";
 
 const router = express.Router();
 
+router.get("/mine", protect, getMyVisitorLogs);
 router.get("/", protect, wardenOrAdmin, getVisitors);
 router.get("/active-rooms", protect, wardenOrAdmin, getActiveVisitorRooms);
 router.get("/room-students", protect, wardenOrAdmin, getRoomStudents);

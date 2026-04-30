@@ -92,6 +92,20 @@ export async function updateVisitor(id, payload) {
   return mapVisitor(data?.data);
 }
 
+export async function getMyVisitorLogs(filters = {}) {
+  const params = {
+    status: filters.status || undefined,
+    page: filters.page || 1,
+    limit: filters.limit || 50,
+  };
+  const { data } = await apiClient.get("/visitors/mine", { params });
+  const list = Array.isArray(data?.data) ? data.data : [];
+  return {
+    data: list.map(mapVisitor).filter(Boolean),
+    meta: data?.meta ?? {},
+  };
+}
+
 export async function getVisitors(filters = {}) {
   const params = {
     search: filters.search?.trim() || undefined,

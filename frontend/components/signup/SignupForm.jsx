@@ -20,6 +20,19 @@ import {
 const YEARS = ["1", "2", "3", "4"];
 const SEMESTERS = ["1", "2"];
 
+function inferMimeTypeFromAsset(asset, fallbackName) {
+  const candidateMime = String(asset?.mimeType || "").toLowerCase().trim();
+  if (candidateMime.startsWith("image/")) return candidateMime;
+
+  const name =
+    String(asset?.fileName || fallbackName || "")
+      .trim()
+      .toLowerCase() || "";
+  if (name.endsWith(".png")) return "image/png";
+  if (name.endsWith(".webp")) return "image/webp";
+  return "image/jpeg";
+}
+
 export default function SignupForm({ onSuccess }) {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -49,10 +62,11 @@ export default function SignupForm({ onSuccess }) {
     });
 
     if (!result.canceled) {
+      const asset = result.assets[0];
       setProfileImage({
-        uri: result.assets[0].uri,
-        type: result.assets[0].type || "image/jpeg",
-        name: result.assets[0].fileName || "profile.jpg",
+        uri: asset.uri,
+        type: inferMimeTypeFromAsset(asset, "profile.jpg"),
+        name: asset.fileName || "profile.jpg",
       });
     }
   };
@@ -65,10 +79,11 @@ export default function SignupForm({ onSuccess }) {
     });
 
     if (!result.canceled) {
+      const asset = result.assets[0];
       setIdCardImage({
-        uri: result.assets[0].uri,
-        type: result.assets[0].type || "image/jpeg",
-        name: result.assets[0].fileName || "idcard.jpg",
+        uri: asset.uri,
+        type: inferMimeTypeFromAsset(asset, "idcard.jpg"),
+        name: asset.fileName || "idcard.jpg",
       });
     }
   };

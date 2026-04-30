@@ -260,6 +260,56 @@ export const updateVisitor = async (req, res) => {
   }
 };
 
+/** Student-only: visitor logs where studentRef is the logged-in user */
+export const getMyVisitorLogs = async (req, res) => {
+  try {
+    if (req.user.role !== "student") {
+      return res.status(403).json({ message: "Student access only" });
+    }
+
+    const studentId = req.user.id;
+    const status = sanitizeText(req.query?.status);
+    const page = Math.max(1, Number(req.query?.page || 1));
+    const limit = Math.max(1, Math.min(100, Number(req.query?.limit || 20)));
+    const skip = (page - 1) * limit;
+
+    const filter = { studentRef: studentId };
+
+    if (status && ["checked_in", "checked_out", "overdue"].includes(status)) {
+      if (status === "overdue") {
+        filter.status = "checked_in";
+        filter.expectedTimeOut = { $lt: new Date() };
+      } else {
+        filter.status = status;
+      }
+    }
+
+    const [rows, total] = await Promise.all([
+      VisitorLog.find(filter)
+        .sort({ checkInAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate("enteredBy", "name email role"),
+      VisitorLog.countDocuments(filter),
+    ]);
+
+    const now = new Date();
+    const data = rows.map((row) => toVisitorDto(row, now));
+    const meta = {
+      page,
+      limit,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+    };
+
+    return res.status(200).json({ data, meta });
+  } catch (error) {
+    return res.status(500).json({
+      message: error.message || "Failed to fetch visitor logs",
+    });
+  }
+};
+
 export const getVisitors = async (req, res) => {
   try {
     const q = sanitizeText(req.query?.search);
