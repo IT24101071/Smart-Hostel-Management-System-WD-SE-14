@@ -10,54 +10,59 @@ function mapAdmin(item) {
 }
 
 export async function getAdmins() {
-  const { data } = await apiClient.get("/admin/admins");
+  const { data } = await apiClient.get("/auth/users", {
+    params: { role: "admin" },
+  });
   const list = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
   return list.map(mapAdmin).filter(Boolean);
 }
 
 export async function searchAdmins(query) {
-  const { data } = await apiClient.get("/admin/admins", {
-    params: { q: String(query ?? "").trim() || undefined },
+  const { data } = await apiClient.get("/auth/users", {
+    params: {
+      role: "admin",
+      search: String(query ?? "").trim() || undefined,
+    },
   });
   const list = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
   return list.map(mapAdmin).filter(Boolean);
 }
 
 export async function getAdminMetrics() {
-  const { data } = await apiClient.get("/admin/metrics");
+  const { data } = await apiClient.get("/auth/admin-metrics");
   return data?.data ?? data ?? {};
 }
 
 export async function createAdmin(payload) {
-  const { data } = await apiClient.post("/admin/admins", payload);
-  return mapAdmin(data?.data ?? data?.admin ?? data);
+  const { data } = await apiClient.post("/auth/create-admin", payload);
+  return mapAdmin(data?.data ?? data?.admin ?? data?.user ?? data);
 }
 
 export async function updateAdmin(id, payload) {
   const { data } = await apiClient.patch(
-    `/admin/admins/${encodeURIComponent(String(id))}`,
+    `/auth/users/${encodeURIComponent(String(id))}`,
     payload,
   );
-  return mapAdmin(data?.data ?? data?.admin ?? data);
+  return mapAdmin(data?.data ?? data?.admin ?? data?.user ?? data);
 }
 
 export async function deleteAdmin(id) {
   const { data } = await apiClient.delete(
-    `/admin/admins/${encodeURIComponent(String(id))}`,
+    `/auth/users/${encodeURIComponent(String(id))}`,
   );
   return data;
 }
 
 export async function setAdminStatus(id, isApproved) {
   const { data } = await apiClient.patch(
-    `/admin/admins/${encodeURIComponent(String(id))}/status`,
+    `/auth/users/${encodeURIComponent(String(id))}`,
     { isApproved: Boolean(isApproved) },
   );
-  return mapAdmin(data?.data ?? data?.admin ?? data);
+  return mapAdmin(data?.data ?? data?.admin ?? data?.user ?? data);
 }
 
 export async function getFilteredAdminAuditLogs(filters = {}) {
-  const { data } = await apiClient.get("/admin/audit-logs", {
+  const { data } = await apiClient.get("/auth/admin-audit-logs", {
     params: {
       action: filters.action && filters.action !== "all" ? filters.action : undefined,
       actor: filters.actor?.trim() || undefined,

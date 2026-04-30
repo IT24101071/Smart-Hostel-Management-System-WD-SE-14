@@ -1,6 +1,8 @@
 import { AxiosError } from "axios";
+import * as FileSystem from "expo-file-system";
 import { Platform } from "react-native";
 import apiClient from "../lib/axios";
+import { storage } from "../lib/storage";
 function mapRoom(r) {
   const { _id, ...rest } = r;
   return { ...rest, id: _id };
@@ -22,23 +24,25 @@ export async function getRoomById(id) {
 
 export async function createRoom(values) {
   if (values.imageUris?.length) {
-    const form = buildFormData(
+    const form = await buildFormData(
       {
         roomNumber: values.roomNumber.trim(),
         roomType: values.roomType,
+        gender: values.gender,
         pricePerMonth: String(Number(values.pricePerMonth)),
         capacity: String(values.capacity),
         description: values.description.trim(),
       },
       values.imageUris,
     );
-    const { data } = await apiClient.post("/rooms", form);
+    const data = await postMultipartWithAuth("/rooms", form);
     return mapRoom(data);
   }
 
   const { data } = await apiClient.post("/rooms", {
     roomNumber: values.roomNumber.trim(),
     roomType: values.roomType,
+    gender: values.gender,
     pricePerMonth: Number(values.pricePerMonth),
     capacity: values.capacity,
     description: values.description.trim(),
@@ -55,7 +59,7 @@ export async function updateRoom(id, values) {
       values.imageUris.length,
       "images",
     );
-    const form = buildFormData(
+    const form = await buildFormData(
       {
         roomType: values.roomType,
         pricePerMonth: String(Number(values.pricePerMonth)),
@@ -66,7 +70,7 @@ export async function updateRoom(id, values) {
       },
       values.imageUris,
     );
-    const { data } = await apiClient.put(`/rooms/${id}`, form);
+    const data = await putMultipartWithAuth(`/rooms/${id}`, form);
     return mapRoom(data);
   }
 
@@ -87,7 +91,7 @@ export async function deleteRoom(id) {
   await apiClient.delete(`/rooms/${id}`);
 }
 
-function buildFormData(fields, imageUris) {
+async function buildFormData(fields, imageUris) {
   const form = new FormData();
 
   for (const [key, value] of Object.entries(fields)) {
@@ -97,18 +101,20 @@ function buildFormData(fields, imageUris) {
   // Only add images if there are any
   if (imageUris && imageUris.length > 0) {
     console.log("[buildFormData] Processing", imageUris.length, "images");
-    imageUris.forEach((item, index) => {
+    for (const [index, item] of imageUris.entries()) {
       // Handle both asset objects (web) and string URIs (native)
-      const uri = typeof item === "string" ? item : item.uri;
+      const rawUri = typeof item === "string" ? item : item.uri;
 
       // Skip if URI is a string starting with 'http' (already uploaded image from API)
       if (
-        typeof uri === "string" &&
-        (uri.startsWith("http://") || uri.startsWith("https://"))
+        typeof rawUri === "string" &&
+        (rawUri.startsWith("http://") || rawUri.startsWith("https://"))
       ) {
-        console.log("[buildFormData] Skipping URL:", uri);
-        return;
+        console.log("[buildFormData] Skipping URL:", rawUri);
+        continue;
       }
+
+      const uri = await normalizeUploadUri(rawUri);
 
       let filename, mimeType;
 
@@ -142,12 +148,65 @@ function buildFormData(fields, imageUris) {
         name: filename,
         type: mimeType,
       });
-    });
+    }
   } else {
     console.log("[buildFormData] No images to add");
   }
 
   return form;
+}
+
+async function normalizeUploadUri(uri) {
+  const value = String(uri || "");
+  if (
+    Platform.OS === "android" &&
+    value.startsWith("content://") &&
+    FileSystem.cacheDirectory
+  ) {
+    const target = `${FileSystem.cacheDirectory}${Date.now()}-upload.jpg`;
+    await FileSystem.copyAsync({ from: value, to: target });
+    return target;
+  }
+  return value;
+}
+
+function resolveEndpoint(path) {
+  const baseUrl = String(apiClient.defaults.baseURL || "").replace(/\/$/, "");
+  return `${baseUrl}${path}`;
+}
+
+async function postMultipartWithAuth(path, form) {
+  const token = await storage.getToken();
+  const res = await fetch(resolveEndpoint(path), {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: form,
+  });
+  const text = await res.text();
+  const data = text ? JSON.parse(text) : {};
+  if (!res.ok) {
+    const err = new Error(data?.message || `Request failed with status ${res.status}`);
+    err.response = { status: res.status, data };
+    throw err;
+  }
+  return data;
+}
+
+async function putMultipartWithAuth(path, form) {
+  const token = await storage.getToken();
+  const res = await fetch(resolveEndpoint(path), {
+    method: "PUT",
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: form,
+  });
+  const text = await res.text();
+  const data = text ? JSON.parse(text) : {};
+  if (!res.ok) {
+    const err = new Error(data?.message || `Request failed with status ${res.status}`);
+    err.response = { status: res.status, data };
+    throw err;
+  }
+  return data;
 }
 
 export function getRoomErrorMessage(error) {

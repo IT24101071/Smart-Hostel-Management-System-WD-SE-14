@@ -10,7 +10,7 @@ function mapNotification(item) {
 }
 
 export async function getMyNotifications() {
-  const { data } = await apiClient.get("/notifications/me");
+  const { data } = await apiClient.get("/notifications");
   const list = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
   return list.map(mapNotification).filter((item) => Boolean(item.id));
 }

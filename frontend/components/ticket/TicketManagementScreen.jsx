@@ -194,7 +194,6 @@ function TicketCard({
   selectedStaffByTicket,
   allowAssignmentActions = true,
   canResolveAnyInProgress = false,
-  onSelectStaff,
 }) {
   const isAssignedToMe = isTicketAssignedToUser(
     ticket,
@@ -327,15 +326,6 @@ function TicketCard({
           ) : null}
         </>
       ) : null}
-      <StaffAssignDropdown
-        ticketId={ticket.id}
-        value={selectedStaffByTicket[ticket.id]}
-        onChange={(staffId) => onSelectStaff(ticket.id, staffId)}
-        options={staffOptions}
-        loading={staffLoading}
-        disabled={actionBusy}
-        compact
-      />
     </Pressable>
   );
 }
@@ -509,8 +499,9 @@ export default function TicketManagementScreen({
   }, []);
 
   useEffect(() => {
+    if (staffOnly) return;
     loadStaff();
-  }, [loadStaff]);
+  }, [loadStaff, staffOnly]);
 
   useEffect(() => {
     const next = {};
@@ -963,9 +954,6 @@ export default function TicketManagementScreen({
       canResolveAnyInProgress={
         currentUserRole === "admin" || currentUserRole === "warden"
       }
-      onSelectStaff={(ticketId, staffId) =>
-        setSelectedStaffByTicket((prev) => ({ ...prev, [ticketId]: staffId }))
-      }
     />
   );
 
@@ -1172,20 +1160,6 @@ export default function TicketManagementScreen({
                       ) : null}
                     </>
                   ) : null}
-                  <StaffAssignDropdown
-                    ticketId={selectedTicket?.id}
-                    value={selectedStaffByTicket[selectedTicket?.id]}
-                    onChange={(staffId) =>
-                      setSelectedStaffByTicket((prev) => ({
-                        ...prev,
-                        [selectedTicket?.id]: staffId,
-                      }))
-                    }
-                    options={staffOptions}
-                    loading={staffLoading}
-                    disabled={statusUpdating}
-                  />
-
                   {/* Note input + Add Note */}
                   {isMineSelected &&
                   selectedTicket?.status === "In Progress" ? (

@@ -9,7 +9,7 @@ async function seedAdmin() {
     await mongoose.connect(process.env.MONGO_URI);
     console.log("Connected to MongoDB.");
 
-    const email = "admin@smart.hostel";
+    const email = "adminhat i";
     const password = "adminpassword123";
 
     const existingAdmin = await User.findOne({ email });

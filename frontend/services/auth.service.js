@@ -1,4 +1,6 @@
 import { AxiosError } from "axios";
+import * as FileSystem from "expo-file-system";
+import { Platform } from "react-native";
 import apiClient from "../lib/axios";
 import { storage } from "../lib/storage";
 
@@ -26,13 +28,79 @@ export async function register(payload) {
   form.append("guardianName", payload.guardianName?.trim() ?? "");
   form.append("guardianContact", payload.guardianContact?.trim() ?? "");
   if (payload.profileImage) {
-    form.append("profileImage", payload.profileImage);
+    form.append(
+      "profileImage",
+      await normalizeUploadFile(payload.profileImage, "profile"),
+    );
   }
   if (payload.idCardImage) {
-    form.append("idCardImage", payload.idCardImage);
+    form.append(
+      "idCardImage",
+      await normalizeUploadFile(payload.idCardImage, "idcard"),
+    );
   }
-  const { data } = await apiClient.post("/auth/register", form);
-  return data;
+
+  const baseUrl = String(apiClient.defaults.baseURL || "").replace(/\/$/, "");
+  const endpoint = `${baseUrl}/auth/register`;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 120000);
+
+  try {
+    const res = await fetch(endpoint, {
+      method: "POST",
+      body: form,
+      signal: controller.signal,
+    });
+
+    const raw = await res.text();
+    let parsed = null;
+    try {
+      parsed = raw ? JSON.parse(raw) : null;
+    } catch {
+      parsed = null;
+    }
+
+    if (!res.ok) {
+      const error = new Error(
+        parsed?.message || `Registration failed with status ${res.status}`,
+      );
+      error.response = {
+        status: res.status,
+        data: parsed ?? { message: raw || "Registration failed" },
+      };
+      throw error;
+    }
+
+    return parsed ?? {};
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+function extFromMime(mime) {
+  const m = String(mime || "").toLowerCase();
+  if (m.includes("png")) return "png";
+  if (m.includes("webp")) return "webp";
+  return "jpg";
+}
+
+async function normalizeUploadFile(file, label) {
+  const uri = String(file?.uri || "");
+  const type = String(file?.type || "image/jpeg");
+  const ext = extFromMime(type);
+  const name = String(file?.name || `${label}.${ext}`);
+
+  if (
+    Platform.OS === "android" &&
+    uri.startsWith("content://") &&
+    FileSystem.cacheDirectory
+  ) {
+    const cacheUri = `${FileSystem.cacheDirectory}${Date.now()}-${name}`;
+    await FileSystem.copyAsync({ from: uri, to: cacheUri });
+    return { uri: cacheUri, type, name };
+  }
+
+  return { uri, type, name };
 }
 
 export async function forgotPassword(payload) {
@@ -78,5 +146,10 @@ export function getAuthErrorMessage(error) {
     if (serverMessage) return serverMessage;
     if (!error.response) return "Could not reach the server. Please try again.";
   }
+  const serverMessage = error?.response?.data?.message;
+  if (serverMessage) return serverMessage;
+  if (error?.name === "AbortError")
+    return "Request timed out. Please check your network and try again.";
+  if (error?.message) return error.message;
   return "Authentication request failed.";
 }
