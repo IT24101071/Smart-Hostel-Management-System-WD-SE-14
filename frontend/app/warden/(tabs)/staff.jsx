@@ -52,6 +52,7 @@ export default function WardenStaffScreen() {
   const [items, setItems] = useState([]);
   const [meta, setMeta] = useState({});
   const [query, setQuery] = useState("");
+  const [searchText, setSearchText] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
   const [showModal, setShowModal] = useState(false);
   const [editMode, setEditMode] = useState(false);
@@ -103,6 +104,15 @@ export default function WardenStaffScreen() {
     } finally {
       setRefreshing(false);
     }
+  };
+
+  const handleSearch = () => {
+    setQuery(searchText.trim());
+  };
+
+  const handleSearchTextChange = (value) => {
+    setSearchText(value);
+    setQuery(value.trim());
   };
 
   const openCreateModal = () => {
@@ -323,12 +333,15 @@ export default function WardenStaffScreen() {
         <View style={styles.controlsRow}>
           <TextInput
             style={styles.searchInput}
-            value={query}
-            onChangeText={setQuery}
+            value={searchText}
+            onChangeText={handleSearchTextChange}
             placeholder="Search staff by name or email"
-            onSubmitEditing={() => loadStaff()}
+            onSubmitEditing={handleSearch}
             returnKeyType="search"
           />
+          <Pressable style={styles.searchBtn} onPress={handleSearch}>
+            <Ionicons name="search" size={16} color={COLORS.white} />
+          </Pressable>
         </View>
 
         <Pressable style={styles.reloadBtn} onPress={() => loadStaff({ withSpinner: true })}>
@@ -539,12 +552,20 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: 10,
+    borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontFamily: "PublicSans_400Regular",
     fontSize: 14,
     color: COLORS.textPrimary,
+  },
+  searchBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.primary,
   },
   reloadBtn: {
     alignSelf: "flex-start",

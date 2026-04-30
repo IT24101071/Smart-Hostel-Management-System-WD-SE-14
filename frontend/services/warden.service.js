@@ -57,6 +57,25 @@ export async function deleteStaff(id) {
   await apiClient.delete(`/warden/staff/${encodeURIComponent(id)}`);
 }
 
+export async function getStudentList(params = {}) {
+  const requestParams = {
+    q: params.q?.trim() || undefined,
+    active: params.active ?? undefined,
+    page: params.page ?? 1,
+    limit: params.limit ?? 100,
+  };
+  const { data } = await apiClient.get("/warden/students", { params: requestParams });
+  const list = Array.isArray(data?.data) ? data.data : [];
+  return {
+    users: list.map(mapUser).filter(Boolean),
+    meta: data?.meta ?? {},
+  };
+}
+
+export async function deleteStudent(id) {
+  await apiClient.delete(`/warden/user/${encodeURIComponent(id)}`);
+}
+
 export function getWardenStaffErrorMessage(error) {
   if (error instanceof AxiosError) {
     const serverMessage = error.response?.data?.message;

@@ -182,10 +182,6 @@ export default function WardenHomeScreen() {
           </View>
         </View>
 
-        <Pressable style={styles.logoutButton} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={18} color={COLORS.white} />
-          <Text style={styles.logoutButtonText}>Sign Out</Text>
-        </Pressable>
       </ScrollView>
     </View>
   );
@@ -279,20 +275,5 @@ const styles = StyleSheet.create({
     fontFamily: "PublicSans_600SemiBold",
     fontSize: 13,
     color: COLORS.textPrimary,
-  },
-  logoutButton: {
-    marginTop: 8,
-    backgroundColor: COLORS.primary,
-    borderRadius: 10,
-    paddingVertical: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-  },
-  logoutButtonText: {
-    fontFamily: "PublicSans_600SemiBold",
-    fontSize: 15,
-    color: COLORS.white,
   },
 });
