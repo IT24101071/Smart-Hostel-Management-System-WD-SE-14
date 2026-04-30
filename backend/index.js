@@ -10,6 +10,7 @@ import notificationRoutes from "./routes/notification.routes.js";
 import paymentRoutes from "./routes/payment.routes.js"; // Payment management
 import uploadRoutes from "./routes/upload.routes.js";
 import ticketRoutes from "./routes/ticket.routes.js";
+import visitorRoutes from "./routes/visitor.routes.js";
 
 dotenv.config();
 connectDB();
@@ -28,6 +29,7 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/payments", paymentRoutes); // Payment management
 app.use("/api/upload", uploadRoutes);
 app.use("/api/tickets", ticketRoutes);
+app.use("/api/visitors", visitorRoutes);
 
 app.get("/health", (req, res) => res.send("API is running!"));
 

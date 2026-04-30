@@ -20,6 +20,7 @@ import {
   addTicketNote,
   assignTicket,
   getAllTickets,
+  getMyAssignedTickets,
   getStaffOptions,
   getTicketById,
   getTicketErrorMessage,
@@ -45,9 +46,15 @@ function formatDate(value) {
 }
 
 function isTicketAssignedToUser(ticket, userId, userEmail) {
-  const assignedId = String(ticket?.assignedTo?.id || ticket?.assignedTo?._id || "");
-  const assignedEmail = String(ticket?.assignedTo?.email || "").trim().toLowerCase();
-  const normalEmail = String(userEmail || "").trim().toLowerCase();
+  const assignedId = String(
+    ticket?.assignedTo?.id || ticket?.assignedTo?._id || "",
+  );
+  const assignedEmail = String(ticket?.assignedTo?.email || "")
+    .trim()
+    .toLowerCase();
+  const normalEmail = String(userEmail || "")
+    .trim()
+    .toLowerCase();
   return (
     (!!assignedId && assignedId === String(userId)) ||
     (!!assignedEmail && !!normalEmail && assignedEmail === normalEmail)
@@ -57,14 +64,22 @@ function isTicketAssignedToUser(ticket, userId, userEmail) {
 function StatusPill({ status }) {
   const theme = TICKET_STATUS_COLORS[status] || TICKET_STATUS_COLORS.Open;
   return (
-    <View style={[styles.statusPill, { backgroundColor: theme.bg, borderColor: theme.border }]}>
-      <Text style={[styles.statusPillText, { color: theme.text }]}>{status}</Text>
+    <View
+      style={[
+        styles.statusPill,
+        { backgroundColor: theme.bg, borderColor: theme.border },
+      ]}
+    >
+      <Text style={[styles.statusPillText, { color: theme.text }]}>
+        {status}
+      </Text>
     </View>
   );
 }
 
 function getUrgencyTheme(urgency) {
-  if (urgency === "High") return { dot: COLORS.maintenance, text: COLORS.maintenance };
+  if (urgency === "High")
+    return { dot: COLORS.maintenance, text: COLORS.maintenance };
   if (urgency === "Medium") return { dot: COLORS.full, text: COLORS.full };
   return { dot: COLORS.available, text: COLORS.available };
 }
@@ -76,7 +91,9 @@ function MetaRow({ icon, label, value, last }) {
         <Ionicons name={icon} size={13} color={COLORS.textMuted} />
         <Text style={styles.metaRowLabel}>{label}</Text>
       </View>
-      <Text style={styles.metaRowValue} numberOfLines={1}>{value}</Text>
+      <Text style={styles.metaRowValue} numberOfLines={1}>
+        {value}
+      </Text>
     </View>
   );
 }
@@ -120,7 +137,10 @@ function StaffAssignDropdown({
         animationType="fade"
         onRequestClose={() => setOpen(false)}
       >
-        <Pressable style={styles.typePickerBackdrop} onPress={() => setOpen(false)}>
+        <Pressable
+          style={styles.typePickerBackdrop}
+          onPress={() => setOpen(false)}
+        >
           <View style={styles.typePickerCard}>
             <Text style={styles.filterModalTitle}>Assign To Staff</Text>
             {options.length ? (
@@ -163,6 +183,8 @@ function TicketCard({
   ticket,
   onPress,
   onAssignToMe,
+  onAssignToStaff,
+  onRemoveAssignee,
   onQuickStatus,
   actionBusy,
   currentUserId,
@@ -170,11 +192,19 @@ function TicketCard({
   staffOptions,
   staffLoading,
   selectedStaffByTicket,
+  allowAssignmentActions = true,
+  canResolveAnyInProgress = false,
   onSelectStaff,
 }) {
-  const isAssignedToMe = isTicketAssignedToUser(ticket, currentUserId, currentUserEmail);
+  const isAssignedToMe = isTicketAssignedToUser(
+    ticket,
+    currentUserId,
+    currentUserEmail,
+  );
   const canAssignToMe = !ticket.assignedTo?.id;
-  const canResolve = ticket.status === "In Progress" && isAssignedToMe;
+  const canResolve =
+    ticket.status === "In Progress" &&
+    (isAssignedToMe || canResolveAnyInProgress);
   const urgencyTheme = getUrgencyTheme(ticket.urgency);
 
   return (
@@ -182,7 +212,11 @@ function TicketCard({
       <View style={styles.cardHead}>
         <View style={styles.headerLeft}>
           <View style={styles.cardIconWrap}>
-            <Ionicons name="construct-outline" size={18} color={COLORS.primary} />
+            <Ionicons
+              name="construct-outline"
+              size={18}
+              color={COLORS.primary}
+            />
           </View>
           <View>
             <Text style={styles.subject} numberOfLines={1}>
@@ -200,7 +234,9 @@ function TicketCard({
             {ticket.category} · Room {ticket.room?.roomNumber || "N/A"}
           </Text>
           <View style={styles.urgencyBadge}>
-            <View style={[styles.urgencyDot, { backgroundColor: urgencyTheme.dot }]} />
+            <View
+              style={[styles.urgencyDot, { backgroundColor: urgencyTheme.dot }]}
+            />
             <Text style={[styles.urgencyText, { color: urgencyTheme.text }]}>
               {ticket.urgency} Priority
             </Text>
@@ -223,26 +259,74 @@ function TicketCard({
         </Pressable>
         {canAssignToMe ? (
           <Pressable
-            style={[styles.actionBtn, styles.actionAssign, actionBusy && styles.actionDisabled]}
+            style={[
+              styles.actionBtn,
+              styles.actionAssign,
+              actionBusy && styles.actionDisabled,
+            ]}
             onPress={() => onAssignToMe(ticket)}
             disabled={actionBusy}
           >
-            <Ionicons name="person-add-outline" size={14} color={COLORS.purple} />
-            <Text style={[styles.actionBtnText, { color: COLORS.purple }]}>Assign to me</Text>
+            <Ionicons
+              name="person-add-outline"
+              size={14}
+              color={COLORS.purple}
+            />
+            <Text style={[styles.actionBtnText, { color: COLORS.purple }]}>
+              Assign to me
+            </Text>
           </Pressable>
         ) : null}
         {canResolve ? (
           <Pressable
-            style={[styles.actionBtn, styles.actionResolve, actionBusy && styles.actionDisabled]}
+            style={[
+              styles.actionBtn,
+              styles.actionResolve,
+              actionBusy && styles.actionDisabled,
+            ]}
             onPress={() => onQuickStatus(ticket, "Resolved")}
             disabled={actionBusy}
           >
             <Ionicons name="checkmark-done-outline" size={14} color="#15803D" />
-            <Text style={[styles.actionBtnText, { color: "#15803D" }]}>Resolve</Text>
+            <Text style={[styles.actionBtnText, { color: "#15803D" }]}>
+              Resolve
+            </Text>
           </Pressable>
         ) : null}
       </View>
 
+      {allowAssignmentActions ? (
+        <>
+          <StaffAssignDropdown
+            ticketId={ticket.id}
+            value={
+              selectedStaffByTicket[ticket.id] || ticket.assignedTo?.id || ""
+            }
+            onChange={(staffId) => onAssignToStaff(ticket, staffId)}
+            options={staffOptions}
+            loading={staffLoading}
+            disabled={actionBusy}
+            compact
+          />
+          {ticket.assignedTo?.id ? (
+            <Pressable
+              style={[
+                styles.removeAssignBtn,
+                actionBusy && styles.actionDisabled,
+              ]}
+              onPress={() => onRemoveAssignee(ticket)}
+              disabled={actionBusy}
+            >
+              <Ionicons
+                name="close-circle-outline"
+                size={14}
+                color={COLORS.maintenance}
+              />
+              <Text style={styles.removeAssignText}>Remove Assignee</Text>
+            </Pressable>
+          ) : null}
+        </>
+      ) : null}
       <StaffAssignDropdown
         ticketId={ticket.id}
         value={selectedStaffByTicket[ticket.id]}
@@ -302,12 +386,13 @@ function TicketAttachments({ ticket }) {
 export default function TicketManagementScreen({
   headerTitle = "Ticket Management",
   showHeader = true,
+  staffOnly = false,
 }) {
   const initialLoadDone = useRef(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [tickets, setTickets] = useState([]);
-  const [activeStatus, setActiveStatus] = useState("Open");
+  const [activeStatus, setActiveStatus] = useState(staffOnly ? "" : "Open");
   const [activeCategory, setActiveCategory] = useState("");
   const [activeUrgency, setActiveUrgency] = useState("");
   const [searchInput, setSearchInput] = useState("");
@@ -317,13 +402,14 @@ export default function TicketManagementScreen({
   const [statusNote, setStatusNote] = useState("");
   const [currentUserId, setCurrentUserId] = useState("");
   const [currentUserEmail, setCurrentUserEmail] = useState("");
-  const [ticketScope, setTicketScope] = useState("all");
+  const [currentUserRole, setCurrentUserRole] = useState("");
+  const [ticketScope, setTicketScope] = useState(staffOnly ? "mine" : "all");
   const [filterPickerOpen, setFilterPickerOpen] = useState(false);
-  const [draftStatus, setDraftStatus] = useState("Open");
+  const [draftStatus, setDraftStatus] = useState(staffOnly ? "" : "Open");
   const [draftCategory, setDraftCategory] = useState("");
   const [draftUrgency, setDraftUrgency] = useState("");
   const [quickActionTicketId, setQuickActionTicketId] = useState("");
-  const [scopeDefaultsActive, setScopeDefaultsActive] = useState(true);
+  const [scopeDefaultsActive, setScopeDefaultsActive] = useState(!staffOnly);
   const [staffOptions, setStaffOptions] = useState([]);
   const [staffLoading, setStaffLoading] = useState(false);
   const [selectedStaffByTicket, setSelectedStaffByTicket] = useState({});
@@ -334,19 +420,28 @@ export default function TicketManagementScreen({
 
   const scopedTickets = useMemo(() => {
     if (ticketScope !== "mine") return tickets;
-    return tickets.filter((t) => isTicketAssignedToUser(t, currentUserId, currentUserEmail));
+    return tickets.filter((t) =>
+      isTicketAssignedToUser(t, currentUserId, currentUserEmail),
+    );
   }, [tickets, ticketScope, currentUserId, currentUserEmail]);
 
   // Server already filters by status/category/urgency/search — client-side
   // re-filtering here guards against stale results while a new fetch is loading.
   const visibleTickets = useMemo(() => {
-    const q = String(searchQuery || "").trim().toLowerCase();
+    const q = String(searchQuery || "")
+      .trim()
+      .toLowerCase();
     return scopedTickets.filter((ticket) => {
       if (activeStatus && ticket.status !== activeStatus) return false;
       if (activeCategory && ticket.category !== activeCategory) return false;
       if (activeUrgency && ticket.urgency !== activeUrgency) return false;
       if (!q) return true;
-      const haystack = [ticket.ticketNumber, ticket.subject, ticket.room?.roomNumber, ticket.createdBy?.name]
+      const haystack = [
+        ticket.ticketNumber,
+        ticket.subject,
+        ticket.room?.roomNumber,
+        ticket.createdBy?.name,
+      ]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
@@ -355,7 +450,13 @@ export default function TicketManagementScreen({
   }, [scopedTickets, activeStatus, activeCategory, activeUrgency, searchQuery]);
 
   const summary = useMemo(() => {
-    const counts = { total: scopedTickets.length, open: 0, inProgress: 0, resolved: 0, closed: 0 };
+    const counts = {
+      total: scopedTickets.length,
+      open: 0,
+      inProgress: 0,
+      resolved: 0,
+      closed: 0,
+    };
     for (const t of scopedTickets) {
       if (t.status === "Open") counts.open += 1;
       else if (t.status === "In Progress") counts.inProgress += 1;
@@ -373,7 +474,8 @@ export default function TicketManagementScreen({
         } else if (!initialLoadDone.current) {
           setLoading(true);
         }
-        const { tickets: list } = await getAllTickets({
+        const loader = staffOnly ? getMyAssignedTickets : getAllTickets;
+        const { tickets: list } = await loader({
           status: activeStatus || undefined,
           category: activeCategory || undefined,
           urgency: activeUrgency || undefined,
@@ -388,7 +490,7 @@ export default function TicketManagementScreen({
         else setLoading(false);
       }
     },
-    [activeStatus, activeCategory, activeUrgency, searchQuery],
+    [activeStatus, activeCategory, activeUrgency, searchQuery, staffOnly],
   );
 
   useEffect(() => {
@@ -412,20 +514,35 @@ export default function TicketManagementScreen({
   }, [loadStaff]);
 
   useEffect(() => {
+    const next = {};
+    for (const ticket of tickets) {
+      if (ticket?.id && ticket?.assignedTo?.id) {
+        next[ticket.id] = ticket.assignedTo.id;
+      }
+    }
+    setSelectedStaffByTicket(next);
+  }, [tickets]);
+
+  useEffect(() => {
     let mounted = true;
     (async () => {
       const user = await storage.getUser();
       if (!mounted) return;
       const localId = String(user?.id || user?._id || "");
       const localEmail = String(user?.email || "");
+      const localRole = String(user?.role || "").toLowerCase();
       setCurrentUserId(localId);
       setCurrentUserEmail(localEmail);
+      setCurrentUserRole(localRole);
       if (!localId || !localEmail) {
         try {
           const { data } = await apiClient.get("/auth/me");
           if (!mounted) return;
           setCurrentUserId(String(data?.id || data?._id || localId || ""));
           setCurrentUserEmail(String(data?.email || localEmail || ""));
+          setCurrentUserRole(
+            String(data?.role || localRole || "").toLowerCase(),
+          );
         } catch {
           // Non-blocking; fall back to storage values only.
         }
@@ -511,9 +628,19 @@ export default function TicketManagementScreen({
     if (!selectedTicket?.id || statusUpdating) return;
     try {
       setStatusUpdating(true);
-      const updated = await updateTicketStatus(selectedTicket.id, { status, note: statusNote });
-      setSelectedTicket((prev) => ({ ...prev, status: updated.status, statusLog: updated.statusLog, updatedAt: updated.updatedAt }));
-      setTickets((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+      const updated = await updateTicketStatus(selectedTicket.id, {
+        status,
+        note: statusNote,
+      });
+      setSelectedTicket((prev) => ({
+        ...prev,
+        status: updated.status,
+        statusLog: updated.statusLog,
+        updatedAt: updated.updatedAt,
+      }));
+      setTickets((prev) =>
+        prev.map((t) => (t.id === updated.id ? updated : t)),
+      );
       Alert.alert("Updated", `Ticket moved to "${status}".`);
       setStatusNote("");
     } catch (error) {
@@ -531,8 +658,16 @@ export default function TicketManagementScreen({
         assignedTo: currentUserId,
         note: "Ticket self-assigned from dashboard",
       });
-      setSelectedTicket((prev) => ({ ...prev, assignedTo: updated.assignedTo, status: updated.status, statusLog: updated.statusLog, updatedAt: updated.updatedAt }));
-      setTickets((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+      setSelectedTicket((prev) => ({
+        ...prev,
+        assignedTo: updated.assignedTo,
+        status: updated.status,
+        statusLog: updated.statusLog,
+        updatedAt: updated.updatedAt,
+      }));
+      setTickets((prev) =>
+        prev.map((t) => (t.id === updated.id ? updated : t)),
+      );
       setScope("mine");
       Alert.alert("Assigned", "Ticket assigned to you.");
     } catch (error) {
@@ -550,7 +685,9 @@ export default function TicketManagementScreen({
         assignedTo: currentUserId,
         note: "Ticket self-assigned from queue",
       });
-      setTickets((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+      setTickets((prev) =>
+        prev.map((t) => (t.id === updated.id ? updated : t)),
+      );
       setScope("mine");
     } catch (error) {
       Alert.alert("Unable to assign", getTicketErrorMessage(error));
@@ -563,8 +700,13 @@ export default function TicketManagementScreen({
     if (!ticket?.id) return;
     try {
       setQuickActionTicketId(ticket.id);
-      const updated = await updateTicketStatus(ticket.id, { status: nextStatus, note: "" });
-      setTickets((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+      const updated = await updateTicketStatus(ticket.id, {
+        status: nextStatus,
+        note: "",
+      });
+      setTickets((prev) =>
+        prev.map((t) => (t.id === updated.id ? updated : t)),
+      );
     } catch (error) {
       Alert.alert("Unable to update", getTicketErrorMessage(error));
     } finally {
@@ -572,13 +714,69 @@ export default function TicketManagementScreen({
     }
   };
 
+  const handleAssignToStaff = async (ticket, staffId) => {
+    if (!ticket?.id || !staffId) return;
+    try {
+      setQuickActionTicketId(ticket.id);
+      const selectedStaff = staffOptions.find((item) => item.id === staffId);
+      const updated = await assignTicket(ticket.id, {
+        assignedTo: staffId,
+        note: selectedStaff
+          ? `Ticket assigned to ${selectedStaff.name}`
+          : "Ticket assignment updated",
+      });
+      setTickets((prev) =>
+        prev.map((t) => (t.id === updated.id ? updated : t)),
+      );
+      setSelectedStaffByTicket((prev) => ({ ...prev, [ticket.id]: staffId }));
+      if (selectedTicket?.id === updated.id) {
+        setSelectedTicket(updated);
+      }
+    } catch (error) {
+      Alert.alert("Unable to assign", getTicketErrorMessage(error));
+    } finally {
+      setQuickActionTicketId("");
+    }
+  };
+
+  const handleRemoveAssignee = async (ticket) => {
+    if (!ticket?.id) return;
+    try {
+      setQuickActionTicketId(ticket.id);
+      const updated = await assignTicket(ticket.id, {
+        assignedTo: "",
+        note: "Assignee removed from dashboard",
+      });
+      setTickets((prev) =>
+        prev.map((t) => (t.id === updated.id ? updated : t)),
+      );
+      setSelectedStaffByTicket((prev) => ({ ...prev, [ticket.id]: "" }));
+      if (selectedTicket?.id === updated.id) {
+        setSelectedTicket(updated);
+      }
+    } catch (error) {
+      Alert.alert("Unable to unassign", getTicketErrorMessage(error));
+    } finally {
+      setQuickActionTicketId("");
+    }
+  };
+
   const handleAddNote = async () => {
-    if (!selectedTicket?.id || statusNote.trim().length < 3 || statusUpdating) return;
+    if (!selectedTicket?.id || statusNote.trim().length < 3 || statusUpdating)
+      return;
     try {
       setStatusUpdating(true);
-      const updated = await addTicketNote(selectedTicket.id, { note: statusNote });
-      setSelectedTicket((prev) => ({ ...prev, statusLog: updated.statusLog, updatedAt: updated.updatedAt }));
-      setTickets((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+      const updated = await addTicketNote(selectedTicket.id, {
+        note: statusNote,
+      });
+      setSelectedTicket((prev) => ({
+        ...prev,
+        statusLog: updated.statusLog,
+        updatedAt: updated.updatedAt,
+      }));
+      setTickets((prev) =>
+        prev.map((t) => (t.id === updated.id ? updated : t)),
+      );
       setStatusNote("");
       Alert.alert("Saved", "Ticket note added.");
     } catch (error) {
@@ -607,12 +805,16 @@ export default function TicketManagementScreen({
           </View>
           <View style={styles.summaryDivider} />
           <View style={styles.summaryCard}>
-            <Text style={[styles.summaryValue, { color: "#B45309" }]}>{summary.open}</Text>
+            <Text style={[styles.summaryValue, { color: "#B45309" }]}>
+              {summary.open}
+            </Text>
             <Text style={styles.summaryLabel}>Open</Text>
           </View>
           <View style={styles.summaryDivider} />
           <View style={styles.summaryCard}>
-            <Text style={[styles.summaryValue, { color: "#2563EB" }]}>{summary.inProgress}</Text>
+            <Text style={[styles.summaryValue, { color: "#2563EB" }]}>
+              {summary.inProgress}
+            </Text>
             <Text style={styles.summaryLabel}>In Progress</Text>
           </View>
           <View style={styles.summaryDivider} />
@@ -639,24 +841,34 @@ export default function TicketManagementScreen({
             <Ionicons name="search" size={16} color={COLORS.white} />
           </Pressable>
           <Pressable style={styles.filterBtn} onPress={openFilterPicker}>
-            <Ionicons name="options-outline" size={16} color={COLORS.textSecondary} />
+            <Ionicons
+              name="options-outline"
+              size={16}
+              color={COLORS.textSecondary}
+            />
           </Pressable>
         </View>
         {(activeStatus || activeCategory || activeUrgency) && (
           <View style={styles.activeFiltersRow}>
             {activeStatus ? (
               <View style={styles.activeFilterTag}>
-                <Text style={styles.activeFilterText}>Status: {activeStatus}</Text>
+                <Text style={styles.activeFilterText}>
+                  Status: {activeStatus}
+                </Text>
               </View>
             ) : null}
             {activeCategory ? (
               <View style={styles.activeFilterTag}>
-                <Text style={styles.activeFilterText}>Type: {activeCategory}</Text>
+                <Text style={styles.activeFilterText}>
+                  Type: {activeCategory}
+                </Text>
               </View>
             ) : null}
             {activeUrgency ? (
               <View style={styles.activeFilterTag}>
-                <Text style={styles.activeFilterText}>Priority: {activeUrgency}</Text>
+                <Text style={styles.activeFilterText}>
+                  Priority: {activeUrgency}
+                </Text>
               </View>
             ) : null}
             <Pressable onPress={clearFilters}>
@@ -664,24 +876,42 @@ export default function TicketManagementScreen({
             </Pressable>
           </View>
         )}
-        <View style={styles.scopeRow}>
-          <Pressable
-            style={[styles.scopeChip, ticketScope === "all" && styles.scopeChipActive]}
-            onPress={() => setScope("all")}
-          >
-            <Text style={[styles.scopeChipText, ticketScope === "all" && styles.scopeChipTextActive]}>
-              All Tickets
-            </Text>
-          </Pressable>
-          <Pressable
-            style={[styles.scopeChip, ticketScope === "mine" && styles.scopeChipActive]}
-            onPress={() => setScope("mine")}
-          >
-            <Text style={[styles.scopeChipText, ticketScope === "mine" && styles.scopeChipTextActive]}>
-              My Tickets
-            </Text>
-          </Pressable>
-        </View>
+        {!staffOnly ? (
+          <View style={styles.scopeRow}>
+            <Pressable
+              style={[
+                styles.scopeChip,
+                ticketScope === "all" && styles.scopeChipActive,
+              ]}
+              onPress={() => setScope("all")}
+            >
+              <Text
+                style={[
+                  styles.scopeChipText,
+                  ticketScope === "all" && styles.scopeChipTextActive,
+                ]}
+              >
+                All Tickets
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[
+                styles.scopeChip,
+                ticketScope === "mine" && styles.scopeChipActive,
+              ]}
+              onPress={() => setScope("mine")}
+            >
+              <Text
+                style={[
+                  styles.scopeChipText,
+                  ticketScope === "mine" && styles.scopeChipTextActive,
+                ]}
+              >
+                My Tickets
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
       </View>
     </View>
   );
@@ -697,7 +927,12 @@ export default function TicketManagementScreen({
             style={[styles.filterChip, active && styles.filterChipActive]}
             onPress={() => onChange(value)}
           >
-            <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
+            <Text
+              style={[
+                styles.filterChipText,
+                active && styles.filterChipTextActive,
+              ]}
+            >
               {label}
             </Text>
           </Pressable>
@@ -711,6 +946,8 @@ export default function TicketManagementScreen({
       ticket={item}
       onPress={openTicket}
       onAssignToMe={handleQuickAssignToMe}
+      onAssignToStaff={handleAssignToStaff}
+      onRemoveAssignee={handleRemoveAssignee}
       onQuickStatus={handleQuickStatus}
       actionBusy={quickActionTicketId === item.id}
       currentUserId={currentUserId}
@@ -718,6 +955,10 @@ export default function TicketManagementScreen({
       staffOptions={staffOptions}
       staffLoading={staffLoading}
       selectedStaffByTicket={selectedStaffByTicket}
+      allowAssignmentActions={!staffOnly}
+      canResolveAnyInProgress={
+        currentUserRole === "admin" || currentUserRole === "warden"
+      }
       onSelectStaff={(ticketId, staffId) =>
         setSelectedStaffByTicket((prev) => ({ ...prev, [ticketId]: staffId }))
       }
@@ -728,7 +969,9 @@ export default function TicketManagementScreen({
     <View style={styles.emptyState}>
       <Ionicons name="file-tray-outline" size={56} color="#D1D5DB" />
       <Text style={styles.emptyTitle}>
-        {ticketScope === "mine" ? "No assigned tickets yet" : "No tickets found"}
+        {ticketScope === "mine"
+          ? "No assigned tickets yet"
+          : "No tickets found"}
       </Text>
       <Text style={styles.emptyText}>
         {ticketScope === "mine"
@@ -741,8 +984,11 @@ export default function TicketManagementScreen({
   const isMineSelected = selectedTicket
     ? isTicketAssignedToUser(selectedTicket, currentUserId, currentUserEmail)
     : false;
+  const canManagerResolve =
+    currentUserRole === "admin" || currentUserRole === "warden";
   const canResolveSelected =
-    selectedTicket?.status === "In Progress" && isMineSelected;
+    selectedTicket?.status === "In Progress" &&
+    (isMineSelected || canManagerResolve);
 
   return (
     <View style={styles.container}>
@@ -799,27 +1045,62 @@ export default function TicketManagementScreen({
                   <View style={styles.modalBadgeRow}>
                     <StatusPill status={selectedTicket?.status} />
                     <View style={[styles.urgencyBadge, { marginLeft: 8 }]}>
-                      <View style={[styles.urgencyDot, { backgroundColor: getUrgencyTheme(selectedTicket?.urgency).dot }]} />
-                      <Text style={[styles.urgencyText, { color: getUrgencyTheme(selectedTicket?.urgency).text }]}>
+                      <View
+                        style={[
+                          styles.urgencyDot,
+                          {
+                            backgroundColor: getUrgencyTheme(
+                              selectedTicket?.urgency,
+                            ).dot,
+                          },
+                        ]}
+                      />
+                      <Text
+                        style={[
+                          styles.urgencyText,
+                          {
+                            color: getUrgencyTheme(selectedTicket?.urgency)
+                              .text,
+                          },
+                        ]}
+                      >
                         {selectedTicket?.urgency} Priority
                       </Text>
                     </View>
                   </View>
 
                   {/* Ticket number + subject */}
-                  <Text style={styles.modalTicketNo}>{selectedTicket?.ticketNumber}</Text>
-                  <Text style={styles.modalSubject}>{selectedTicket?.subject}</Text>
+                  <Text style={styles.modalTicketNo}>
+                    {selectedTicket?.ticketNumber}
+                  </Text>
+                  <Text style={styles.modalSubject}>
+                    {selectedTicket?.subject}
+                  </Text>
 
                   {/* Description */}
                   <View style={styles.descBox}>
-                    <Text style={styles.modalBody}>{selectedTicket?.description}</Text>
+                    <Text style={styles.modalBody}>
+                      {selectedTicket?.description}
+                    </Text>
                   </View>
 
                   {/* Meta rows */}
                   <View style={styles.metaCard}>
-                    <MetaRow icon="construct-outline" label="Type" value={selectedTicket?.category} />
-                    <MetaRow icon="bed-outline" label="Room" value={selectedTicket?.room?.roomNumber || "N/A"} />
-                    <MetaRow icon="person-outline" label="Student" value={selectedTicket?.createdBy?.name || "N/A"} />
+                    <MetaRow
+                      icon="construct-outline"
+                      label="Type"
+                      value={selectedTicket?.category}
+                    />
+                    <MetaRow
+                      icon="bed-outline"
+                      label="Room"
+                      value={selectedTicket?.room?.roomNumber || "N/A"}
+                    />
+                    <MetaRow
+                      icon="person-outline"
+                      label="Student"
+                      value={selectedTicket?.createdBy?.name || "N/A"}
+                    />
                     <MetaRow
                       icon="person-circle-outline"
                       label="Assigned"
@@ -834,15 +1115,59 @@ export default function TicketManagementScreen({
                   {/* Assign To Me */}
                   {!selectedTicket?.assignedTo?.id && (
                     <Pressable
-                      style={[styles.assignBtn, statusUpdating && styles.actionDisabled]}
+                      style={[
+                        styles.assignBtn,
+                        statusUpdating && styles.actionDisabled,
+                      ]}
                       onPress={handleAssignToMe}
                       disabled={statusUpdating}
                     >
-                      <Ionicons name="person-add-outline" size={14} color={COLORS.primaryDark} />
+                      <Ionicons
+                        name="person-add-outline"
+                        size={14}
+                        color={COLORS.primaryDark}
+                      />
                       <Text style={styles.assignBtnText}>Assign To Me</Text>
                     </Pressable>
                   )}
 
+                  {!staffOnly ? (
+                    <>
+                      <StaffAssignDropdown
+                        ticketId={selectedTicket?.id}
+                        value={
+                          selectedStaffByTicket[selectedTicket?.id] ||
+                          selectedTicket?.assignedTo?.id ||
+                          ""
+                        }
+                        onChange={(staffId) =>
+                          handleAssignToStaff(selectedTicket, staffId)
+                        }
+                        options={staffOptions}
+                        loading={staffLoading}
+                        disabled={statusUpdating}
+                      />
+                      {selectedTicket?.assignedTo?.id ? (
+                        <Pressable
+                          style={[
+                            styles.removeAssignBtn,
+                            statusUpdating && styles.actionDisabled,
+                          ]}
+                          onPress={() => handleRemoveAssignee(selectedTicket)}
+                          disabled={statusUpdating}
+                        >
+                          <Ionicons
+                            name="close-circle-outline"
+                            size={14}
+                            color={COLORS.maintenance}
+                          />
+                          <Text style={styles.removeAssignText}>
+                            Remove Assignee
+                          </Text>
+                        </Pressable>
+                      ) : null}
+                    </>
+                  ) : null}
                   <StaffAssignDropdown
                     ticketId={selectedTicket?.id}
                     value={selectedStaffByTicket[selectedTicket?.id]}
@@ -858,7 +1183,8 @@ export default function TicketManagementScreen({
                   />
 
                   {/* Note input + Add Note */}
-                  {isMineSelected && selectedTicket?.status === "In Progress" ? (
+                  {isMineSelected &&
+                  selectedTicket?.status === "In Progress" ? (
                     <>
                       <Text style={styles.noteBlockLabel}>Add a note</Text>
                       <TextInput
@@ -869,9 +1195,15 @@ export default function TicketManagementScreen({
                         multiline
                       />
                       <Pressable
-                        style={[styles.addNoteBtn, statusNote.trim().length < 3 && styles.addNoteBtnDisabled]}
+                        style={[
+                          styles.addNoteBtn,
+                          statusNote.trim().length < 3 &&
+                            styles.addNoteBtnDisabled,
+                        ]}
                         onPress={handleAddNote}
-                        disabled={statusNote.trim().length < 3 || statusUpdating}
+                        disabled={
+                          statusNote.trim().length < 3 || statusUpdating
+                        }
                       >
                         <Text style={styles.addNoteBtnText}>Add Note</Text>
                       </Pressable>
@@ -882,31 +1214,51 @@ export default function TicketManagementScreen({
                   {!!selectedTicket?.statusLog?.length && (
                     <View style={styles.timelineBlock}>
                       <Text style={styles.timelineTitle}>Recent Updates</Text>
-                      {[...selectedTicket.statusLog].reverse().map((entry, idx) => {
-                        const dotTheme = TICKET_STATUS_COLORS[entry.status] || TICKET_STATUS_COLORS.Open;
-                        return (
-                        <View
-                          key={`${entry.changedAt || idx}-${entry.status}`}
-                          style={styles.timelineEntry}
-                        >
-                          <View style={styles.timelineDotCol}>
-                            <View style={[styles.timelineDot, { backgroundColor: dotTheme.text, borderColor: dotTheme.bg }]} />
-                            {idx < selectedTicket.statusLog.length - 1 && (
-                              <View style={styles.timelineLine} />
-                            )}
-                          </View>
-                          <View style={styles.timelineEntryBody}>
-                            <View style={styles.timelineEntryTop}>
-                              <StatusPill status={entry.status} />
-                              <Text style={styles.timelineDate}>{formatDate(entry.changedAt)}</Text>
+                      {[...selectedTicket.statusLog]
+                        .reverse()
+                        .map((entry, idx) => {
+                          const dotTheme =
+                            TICKET_STATUS_COLORS[entry.status] ||
+                            TICKET_STATUS_COLORS.Open;
+                          return (
+                            <View
+                              key={`${entry.changedAt || idx}-${entry.status}`}
+                              style={styles.timelineEntry}
+                            >
+                              <View style={styles.timelineDotCol}>
+                                <View
+                                  style={[
+                                    styles.timelineDot,
+                                    {
+                                      backgroundColor: dotTheme.text,
+                                      borderColor: dotTheme.bg,
+                                    },
+                                  ]}
+                                />
+                                {idx < selectedTicket.statusLog.length - 1 && (
+                                  <View style={styles.timelineLine} />
+                                )}
+                              </View>
+                              <View style={styles.timelineEntryBody}>
+                                <View style={styles.timelineEntryTop}>
+                                  <StatusPill status={entry.status} />
+                                  <Text style={styles.timelineDate}>
+                                    {formatDate(entry.changedAt)}
+                                  </Text>
+                                </View>
+                                <Text
+                                  style={
+                                    entry.note
+                                      ? styles.timelineNote
+                                      : styles.timelineNoNote
+                                  }
+                                >
+                                  {entry.note || "No note added"}
+                                </Text>
+                              </View>
                             </View>
-                            <Text style={entry.note ? styles.timelineNote : styles.timelineNoNote}>
-                              {entry.note || "No note added"}
-                            </Text>
-                          </View>
-                        </View>
-                        );
-                      })}
+                          );
+                        })}
                     </View>
                   )}
 
@@ -916,12 +1268,21 @@ export default function TicketManagementScreen({
                 {canResolveSelected ? (
                   <View style={styles.modalFooter}>
                     <Pressable
-                      style={[styles.resolveActionBtn, statusUpdating && styles.actionDisabled]}
+                      style={[
+                        styles.resolveActionBtn,
+                        statusUpdating && styles.actionDisabled,
+                      ]}
                       onPress={() => handleStatusChange("Resolved")}
                       disabled={statusUpdating}
                     >
-                      <Ionicons name="checkmark-done-outline" size={16} color={COLORS.white} />
-                      <Text style={styles.resolveActionText}>Mark as Resolved</Text>
+                      <Ionicons
+                        name="checkmark-done-outline"
+                        size={16}
+                        color={COLORS.white}
+                      />
+                      <Text style={styles.resolveActionText}>
+                        Mark as Resolved
+                      </Text>
                     </Pressable>
                   </View>
                 ) : null}
@@ -946,14 +1307,28 @@ export default function TicketManagementScreen({
             <Text style={styles.filterModalSectionTitle}>Status</Text>
             {renderFilterSelector(statusFilters, draftStatus, setDraftStatus)}
             <Text style={styles.filterModalSectionTitle}>Type</Text>
-            {renderFilterSelector(categoryFilters, draftCategory, setDraftCategory)}
+            {renderFilterSelector(
+              categoryFilters,
+              draftCategory,
+              setDraftCategory,
+            )}
             <Text style={styles.filterModalSectionTitle}>Priority</Text>
-            {renderFilterSelector(urgencyFilters, draftUrgency, setDraftUrgency)}
+            {renderFilterSelector(
+              urgencyFilters,
+              draftUrgency,
+              setDraftUrgency,
+            )}
             <View style={styles.filterModalActions}>
-              <Pressable style={styles.filterActionSecondary} onPress={clearFilters}>
+              <Pressable
+                style={styles.filterActionSecondary}
+                onPress={clearFilters}
+              >
                 <Text style={styles.filterActionSecondaryText}>Reset</Text>
               </Pressable>
-              <Pressable style={styles.filterActionPrimary} onPress={applyFilters}>
+              <Pressable
+                style={styles.filterActionPrimary}
+                onPress={applyFilters}
+              >
                 <Text style={styles.filterActionPrimaryText}>Apply</Text>
               </Pressable>
             </View>
@@ -1183,7 +1558,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  filterChipActive: { backgroundColor: COLORS.primaryLight, borderColor: COLORS.primary },
+  filterChipActive: {
+    backgroundColor: COLORS.primaryLight,
+    borderColor: COLORS.primary,
+  },
   filterChipText: {
     fontFamily: "PublicSans_600SemiBold",
     fontSize: 12,
@@ -1215,8 +1593,17 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: COLORS.primaryLight,
   },
-  cardHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  ticketNo: { fontFamily: "PublicSans_400Regular", fontSize: 12, color: COLORS.textMuted, marginTop: 1 },
+  cardHead: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  ticketNo: {
+    fontFamily: "PublicSans_400Regular",
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginTop: 1,
+  },
   subject: {
     fontFamily: "PublicSans_700Bold",
     fontSize: 15,
@@ -1261,9 +1648,19 @@ const styles = StyleSheet.create({
     fontFamily: "PublicSans_600SemiBold",
     fontSize: 11,
   },
-  statusPill: { borderRadius: 20, borderWidth: 1, paddingHorizontal: 9, paddingVertical: 4 },
+  statusPill: {
+    borderRadius: 20,
+    borderWidth: 1,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+  },
   statusPillText: { fontFamily: "PublicSans_600SemiBold", fontSize: 11 },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 30 },
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 30,
+  },
   actionRow: {
     marginTop: 12,
     borderTopWidth: 1,
@@ -1345,8 +1742,17 @@ const styles = StyleSheet.create({
     minHeight: "68%",
     maxHeight: "92%",
   },
-  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 },
-  modalTitle: { fontFamily: "PublicSans_700Bold", fontSize: 18, color: COLORS.textPrimary },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  modalTitle: {
+    fontFamily: "PublicSans_700Bold",
+    fontSize: 18,
+    color: COLORS.textPrimary,
+  },
   modalScroll: { flex: 1 },
   modalScrollContent: { paddingTop: 4 },
   modalScrollEnd: { height: 16 },
@@ -1580,6 +1986,24 @@ const styles = StyleSheet.create({
     fontFamily: "PublicSans_600SemiBold",
     fontSize: 12,
     color: COLORS.white,
+  },
+  removeAssignBtn: {
+    marginTop: 8,
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    backgroundColor: "#FEF2F2",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  removeAssignText: {
+    fontFamily: "PublicSans_600SemiBold",
+    fontSize: 12,
+    color: COLORS.maintenance,
   },
   timelineBlock: {
     borderTopWidth: 1,

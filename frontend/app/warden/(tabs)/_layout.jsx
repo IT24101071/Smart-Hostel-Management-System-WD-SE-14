@@ -39,7 +39,11 @@ export default function WardenTabsLayout() {
         options={{
           title: "Home",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home-outline" size={size ?? ICON_SIZE} color={color} />
+            <Ionicons
+              name="home-outline"
+              size={size ?? ICON_SIZE}
+              color={color}
+            />
           ),
         }}
       />
@@ -48,7 +52,25 @@ export default function WardenTabsLayout() {
         options={{
           title: "Tickets",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="ticket-outline" size={size ?? ICON_SIZE} color={color} />
+            <Ionicons
+              name="ticket-outline"
+              size={size ?? ICON_SIZE}
+              color={color}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="visitor-log-book"
+        options={{
+          title: "Visitor Log Book",
+          href: isStaff ? null : undefined,
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons
+              name="book-outline"
+              size={size ?? ICON_SIZE}
+              color={color}
+            />
           ),
         }}
       />
@@ -58,7 +80,11 @@ export default function WardenTabsLayout() {
           title: "Staff",
           href: isStaff ? null : undefined,
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="people-outline" size={size ?? ICON_SIZE} color={color} />
+            <Ionicons
+              name="people-outline"
+              size={size ?? ICON_SIZE}
+              color={color}
+            />
           ),
         }}
       />
@@ -68,7 +94,11 @@ export default function WardenTabsLayout() {
           title: "Students",
           href: isStaff ? null : undefined,
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="school-outline" size={size ?? ICON_SIZE} color={color} />
+            <Ionicons
+              name="school-outline"
+              size={size ?? ICON_SIZE}
+              color={color}
+            />
           ),
         }}
       />
@@ -78,7 +108,11 @@ export default function WardenTabsLayout() {
           title: "Rooms",
           href: isStaff ? null : undefined,
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="bed-outline" size={size ?? ICON_SIZE} color={color} />
+            <Ionicons
+              name="bed-outline"
+              size={size ?? ICON_SIZE}
+              color={color}
+            />
           ),
         }}
       />

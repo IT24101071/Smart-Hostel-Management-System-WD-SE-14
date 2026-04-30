@@ -56,6 +56,8 @@ export default function LoginForm() {
         router.replace("/student");
       } else if (user.role === "warden" || user.role === "staff") {
         router.replace("/warden");
+      } else if (user.role === "staff") {
+        router.replace("/staff");
       } else {
         await storage.clear();
         setError("Invalid user role. Please contact support.");

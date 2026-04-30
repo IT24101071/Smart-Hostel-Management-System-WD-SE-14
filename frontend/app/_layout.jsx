@@ -34,6 +34,7 @@ function AppNavigation() {
         }}
       >
         <Stack.Screen name="admin" />
+        <Stack.Screen name="staff" />
         <Stack.Screen name="(auth)" />
       </Stack>
       <StatusBar style="dark" />
