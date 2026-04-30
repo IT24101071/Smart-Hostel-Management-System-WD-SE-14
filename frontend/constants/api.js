@@ -53,6 +53,11 @@ function getDebuggerHostCandidates() {
   ].filter(Boolean);
 }
 
+function makeApiUrl(host) {
+  if (!host) return null;
+  return `http://${host}:${DEFAULT_API_PORT}/api`;
+}
+
 /**
  * Dev API URL:
  * 1. EXPO_PUBLIC_API_URL when set (explicit override).
@@ -71,7 +76,7 @@ function resolveDevApiUrl() {
   for (const raw of getDebuggerHostCandidates()) {
     const host = parseHostFromDebuggerValue(raw);
     if (host && !isUnsuitableLocalApiHost(host)) {
-      const url = `http://${host}:${DEFAULT_API_PORT}/api`;
+      const url = makeApiUrl(host);
       if (__DEV__) {
         console.log("[API] Using dev API URL from Expo debugger host:", url);
       }
@@ -94,8 +99,45 @@ function resolveDevApiUrl() {
   return url;
 }
 
+function buildDevApiCandidates() {
+  const candidates = [];
+  const fromEnv = process.env.EXPO_PUBLIC_API_URL?.trim();
+  if (fromEnv) candidates.push(fromEnv);
+
+  for (const raw of getDebuggerHostCandidates()) {
+    const host = parseHostFromDebuggerValue(raw);
+    if (!host || isUnsuitableLocalApiHost(host)) continue;
+    const url = makeApiUrl(host);
+    if (url) candidates.push(url);
+  }
+
+  if (Platform.OS === "android") {
+    candidates.push(`http://10.0.2.2:${DEFAULT_API_PORT}/api`);
+    candidates.push(`http://127.0.0.1:${DEFAULT_API_PORT}/api`);
+    candidates.push(`http://localhost:${DEFAULT_API_PORT}/api`);
+  } else {
+    candidates.push(`http://localhost:${DEFAULT_API_PORT}/api`);
+    candidates.push(`http://127.0.0.1:${DEFAULT_API_PORT}/api`);
+  }
+
+  // Keep order, remove duplicates.
+  return [...new Set(candidates.filter(Boolean))];
+}
+
 export const API_BASE_URL = __DEV__
   ? resolveDevApiUrl()
   : (process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:5000/api");
+
+export const API_BASE_URL_CANDIDATES = __DEV__
+  ? buildDevApiCandidates()
+  : [API_BASE_URL];
+
+export function getNextApiBaseUrl(currentBaseUrl) {
+  const current = String(currentBaseUrl || "");
+  const list = API_BASE_URL_CANDIDATES;
+  const idx = list.indexOf(current);
+  if (idx < 0) return list[0] || null;
+  return list[idx + 1] || null;
+}
 
 export const API_TIMEOUT_MS = 10_000;

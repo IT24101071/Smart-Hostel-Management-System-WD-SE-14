@@ -1,6 +1,11 @@
 import axios from "axios";
 import { router } from "expo-router";
-import { API_BASE_URL, API_TIMEOUT_MS } from "../constants/api";
+import {
+  API_BASE_URL,
+  API_BASE_URL_CANDIDATES,
+  API_TIMEOUT_MS,
+  getNextApiBaseUrl,
+} from "../constants/api";
 import { storage } from "./storage";
 
 const apiClient = axios.create({
@@ -52,6 +57,30 @@ apiClient.interceptors.response.use(
     return response;
   },
   async (error) => {
+    const hasNoResponse = !error.response;
+    const canRetryOnNextHost =
+      hasNoResponse &&
+      error.code === "ERR_NETWORK" &&
+      error.config &&
+      !error.config.__retriedOnNextHost;
+
+    if (canRetryOnNextHost) {
+      const currentBase = error.config.baseURL || apiClient.defaults.baseURL;
+      const nextBase = getNextApiBaseUrl(currentBase);
+      if (nextBase && nextBase !== currentBase) {
+        console.warn(
+          `[API] Network error on ${currentBase}. Retrying via ${nextBase}`,
+        );
+        apiClient.defaults.baseURL = nextBase;
+        const retryConfig = {
+          ...error.config,
+          baseURL: nextBase,
+          __retriedOnNextHost: true,
+        };
+        return apiClient.request(retryConfig);
+      }
+    }
+
     console.error(
       `[API] Error ← ${error.config?.url}`,
       `| status: ${error.response?.status ?? "no response"}`,
@@ -66,5 +95,9 @@ apiClient.interceptors.response.use(
     return Promise.reject(error);
   },
 );
+
+if (__DEV__) {
+  console.log("[API] Base URL candidates:", API_BASE_URL_CANDIDATES);
+}
 
 export default apiClient;

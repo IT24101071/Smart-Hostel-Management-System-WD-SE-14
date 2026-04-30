@@ -44,7 +44,7 @@ export default function WardenHomeScreen() {
     try {
       if (withLoader) setLoading(true);
       const [ticketRes, visitorInRes, visitorOverdueRes, staffRes, roomsRes] = await Promise.all([
-        getAllTickets({ status: "open" }),
+        getAllTickets({ status: "Open" }),
         getVisitors({ status: "checked_in", page: 1, limit: 200 }),
         getVisitors({ status: "overdue", page: 1, limit: 200 }),
         getStaffList({ page: 1, limit: 100 }),
@@ -52,7 +52,7 @@ export default function WardenHomeScreen() {
       ]);
 
       const openTickets = Array.isArray(ticketRes?.tickets) ? ticketRes.tickets : [];
-      const highUrgencyCount = openTickets.filter((ticket) => ticket?.urgency === "high").length;
+      const highUrgencyCount = openTickets.filter((ticket) => ticket?.urgency === "High").length;
       const rooms = Array.isArray(roomsRes?.rooms) ? roomsRes.rooms : [];
       const occupiedRooms = rooms.filter((room) => {
         const current = Number(room?.currentOccupancy ?? 0);
