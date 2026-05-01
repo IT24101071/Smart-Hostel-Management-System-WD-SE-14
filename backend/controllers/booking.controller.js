@@ -2,6 +2,11 @@ import Booking from "../models/Booking.js";
 import Notification from "../models/Notification.js";
 import Room from "../models/Room.js";
 import User from "../models/User.js";
+import { sendBookingConfirmationEmail } from "../utils/brevoEmail.js";
+import {
+  buildBookingReceiptPdfBase64,
+  buildBookingReceiptText,
+} from "../utils/bookingReceipt.js";
 
 /** Matches [frontend/app/student/(tabs)/booking.jsx](first-time booking flow). */
 const FIRST_BOOKING_SECURITY_DEPOSIT_LKR = 1000;
@@ -61,37 +66,6 @@ function toBookingDto(booking) {
     receiptUploaded: Boolean(booking.receipt?.uri),
     createdAt: booking.createdAt,
   };
-}
-
-function formatDateTime(value) {
-  if (!value) return "--";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "--";
-  return d.toLocaleString();
-}
-
-function buildReceiptText(booking) {
-  return [
-    "SMART HOSTEL MANAGEMENT SYSTEM",
-    "Payment Receipt",
-    "",
-    `Receipt No: RCP-${String(booking._id).slice(-8).toUpperCase()}`,
-    `Booking ID: ${booking._id}`,
-    `Generated At: ${formatDateTime(new Date())}`,
-    "",
-    `Room: ${booking.room?.roomNumber ?? "--"}`,
-    `Check-In: ${formatDateTime(booking.checkInDate)}`,
-    `Check-Out: ${formatDateTime(booking.checkOutDate)}`,
-    `Stay Days: ${booking.stayDays}`,
-    "",
-    `Room Fees: Rs. ${Number(booking.roomFees ?? 0).toLocaleString()}`,
-    `Security Deposit: Rs. ${Number(booking.securityDeposit ?? 0).toLocaleString()}`,
-    `Total Paid: Rs. ${Number(booking.totalDue ?? 0).toLocaleString()}`,
-    `Payment Method: ${String(booking.paymentMethod ?? "").toUpperCase()}`,
-    `Payment Status: ${String(booking.paymentStatus ?? "").toUpperCase()}`,
-    "",
-    "Thank you for your payment.",
-  ].join("\n");
 }
 
 export const createBooking = async (req, res) => {
@@ -252,6 +226,23 @@ export const createBooking = async (req, res) => {
     });
     await room.save();
 
+    if (booking.paymentMethod === "card" && booking.paymentStatus === "completed") {
+      const bookingForEmail = { ...booking.toObject(), room: room.toObject() };
+      const receiptPdfBase64 = await buildBookingReceiptPdfBase64(bookingForEmail);
+      try {
+        await sendBookingConfirmationEmail({
+          toEmail: student.email,
+          studentName: student.name,
+          booking: bookingForEmail,
+          room: room.toObject(),
+          includeReceiptAttachment: true,
+          receiptPdfBase64,
+        });
+      } catch (emailError) {
+        console.error("[createBooking] Failed to send booking email:", emailError);
+      }
+    }
+
     await Notification.create({
       recipient: booking.student,
       actor: booking.student,
@@ -368,7 +359,7 @@ export const getBookingReceipt = async (req, res) => {
       });
     }
 
-    const receiptText = buildReceiptText(booking);
+    const receiptText = buildBookingReceiptText(booking);
     return res.status(200).json({
       bookingId: booking._id,
       fileName: `booking-receipt-${booking._id}.pdf`,

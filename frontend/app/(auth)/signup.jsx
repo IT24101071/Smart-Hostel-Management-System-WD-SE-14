@@ -17,10 +17,6 @@ import { COLORS } from "../../constants/colors";
 export default function SignupScreen() {
   const router = useRouter();
 
-  const handleSignupSuccess = () => {
-    router.replace("/");
-  };
-
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#C8DAEA" />
@@ -40,7 +36,7 @@ export default function SignupScreen() {
             </Pressable>
 
             <SignupHeader />
-            <SignupForm onSuccess={handleSignupSuccess} />
+            <SignupForm />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

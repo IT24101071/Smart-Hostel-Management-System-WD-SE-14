@@ -37,7 +37,18 @@ export default function LoginForm() {
 
     try {
       setLoading(true);
-      const { token, user } = await login({ email: email.trim(), password });
+      const { token, user, passwordChangeRequired, message } = await login({
+        email: email.trim(),
+        password,
+      });
+
+      if (passwordChangeRequired) {
+        router.push({
+          pathname: "/first-login-change-password",
+          params: { email: email.trim().toLowerCase(), hint: message || "" },
+        });
+        return;
+      }
 
       await storage.setToken(token);
       await storage.setUser(user);

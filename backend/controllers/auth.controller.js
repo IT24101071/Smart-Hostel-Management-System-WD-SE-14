@@ -5,15 +5,24 @@ import Booking from "../models/Booking.js";
 import Notification from "../models/Notification.js";
 import Room from "../models/Room.js";
 import AdminAuditLog from "../models/AdminAuditLog.js";
+import SignupOtpSession from "../models/SignupOtpSession.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { uploadBufferToR2 } from "../utils/r2Upload.js";
-import { sendPasswordResetOtpEmail } from "../utils/brevoEmail.js";
+import {
+  sendPasswordResetOtpEmail,
+  sendSignupOtpEmail,
+  sendOperationalAccountInvitationEmail,
+  sendOperationalAccountActivatedEmail,
+} from "../utils/brevoEmail.js";
 
 const GENDERS = ["male", "female"];
 
 const PASSWORD_RESET_OTP_TTL_MS = 15 * 60 * 1000;
+const SIGNUP_OTP_TTL_MS = 10 * 60 * 1000;
+const SIGNUP_OTP_MAX_ATTEMPTS = 5;
 const MIN_NEW_PASSWORD_LEN = 8;
+const FIRST_LOGIN_PASSWORD_MIN_LEN = 8;
 
 function normalizeEmail(email) {
   return String(email ?? "")
@@ -32,6 +41,24 @@ function emailQueryFilter(normalized) {
 
 function generateSixDigitOtp() {
   return String(crypto.randomInt(100000, 1000000));
+}
+
+function toTrimmedString(value) {
+  return String(value ?? "").trim();
+}
+
+async function validateSignupUniqueness({ email, studentId }) {
+  const duplicateEmail = await User.findOne(emailQueryFilter(normalizeEmail(email)));
+  if (duplicateEmail) {
+    return "Email already registered";
+  }
+  if (studentId) {
+    const duplicateStudentId = await User.findOne({ studentId: String(studentId) });
+    if (duplicateStudentId) {
+      return "Student ID already registered";
+    }
+  }
+  return null;
 }
 
 function recalculateRoomAvailability({ currentOccupancy, capacity, status }) {
@@ -58,6 +85,174 @@ function startOfDay(dateValue) {
   date.setHours(0, 0, 0, 0);
   return date;
 }
+
+export const requestRegisterOtp = async (req, res) => {
+  try {
+    const name = toTrimmedString(req.body?.name);
+    const email = normalizeEmail(req.body?.email);
+    const password = String(req.body?.password ?? "");
+    const studentId = toTrimmedString(req.body?.studentId);
+    const yearRaw = req.body?.year;
+    const semesterRaw = req.body?.semester;
+    const contactNo = toTrimmedString(req.body?.contactNo);
+    const guardianName = toTrimmedString(req.body?.guardianName);
+    const guardianContact = toTrimmedString(req.body?.guardianContact);
+    const gender = toTrimmedString(req.body?.gender);
+
+    if (!name || !email || !password) {
+      return res
+        .status(400)
+        .json({ message: "Name, email, and password are required" });
+    }
+    if (!gender || !GENDERS.includes(gender)) {
+      return res
+        .status(400)
+        .json({ message: "gender is required and must be male or female" });
+    }
+
+    const duplicateMsg = await validateSignupUniqueness({ email, studentId });
+    if (duplicateMsg) return res.status(400).json({ message: duplicateMsg });
+
+    let profileImageUrl = null;
+    let idCardImageUrl = null;
+    if (req.files?.profileImage?.[0]) {
+      const profileFile = req.files.profileImage[0];
+      profileImageUrl = await uploadBufferToR2(
+        profileFile.buffer,
+        profileFile.originalname,
+        profileFile.mimetype,
+      );
+    }
+    if (req.files?.idCardImage?.[0]) {
+      const idCardFile = req.files.idCardImage[0];
+      idCardImageUrl = await uploadBufferToR2(
+        idCardFile.buffer,
+        idCardFile.originalname,
+        idCardFile.mimetype,
+      );
+    }
+
+    const otp = generateSixDigitOtp();
+    const otpHash = await bcrypt.hash(otp, 10);
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    const year = yearRaw === undefined || yearRaw === "" ? undefined : Number(yearRaw);
+    const semester =
+      semesterRaw === undefined || semesterRaw === ""
+        ? undefined
+        : Number(semesterRaw);
+
+    await SignupOtpSession.findOneAndUpdate(
+      { email },
+      {
+        email,
+        otpHash,
+        otpExpiresAt: new Date(Date.now() + SIGNUP_OTP_TTL_MS),
+        otpAttempts: 0,
+        payload: {
+          name,
+          email,
+          passwordHash,
+          studentId: studentId || undefined,
+          year: Number.isFinite(year) ? year : undefined,
+          semester: Number.isFinite(semester) ? semester : undefined,
+          contactNo: contactNo || undefined,
+          guardianName: guardianName || undefined,
+          guardianContact: guardianContact || undefined,
+          gender,
+          profileImage: profileImageUrl || undefined,
+          idCardImage: idCardImageUrl || undefined,
+        },
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    );
+
+    await sendSignupOtpEmail(email, otp);
+
+    return res.status(200).json({
+      message: "OTP sent to your email. Verify to complete registration.",
+      email,
+      expiresInSeconds: Math.floor(SIGNUP_OTP_TTL_MS / 1000),
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+export const verifyRegisterOtp = async (req, res) => {
+  try {
+    const email = normalizeEmail(req.body?.email);
+    const otp = toTrimmedString(req.body?.otp);
+
+    if (!email) return res.status(400).json({ message: "Email is required" });
+    if (!otp) return res.status(400).json({ message: "OTP is required" });
+
+    const session = await SignupOtpSession.findOne({ email }).select(
+      "+otpHash +payload.passwordHash",
+    );
+    if (!session?.otpHash || !session?.otpExpiresAt) {
+      return res.status(400).json({ message: "Invalid or expired OTP session" });
+    }
+
+    if (session.otpExpiresAt.getTime() < Date.now()) {
+      await SignupOtpSession.deleteOne({ _id: session._id });
+      return res.status(400).json({ message: "OTP expired. Please request again." });
+    }
+
+    if (Number(session.otpAttempts || 0) >= SIGNUP_OTP_MAX_ATTEMPTS) {
+      await SignupOtpSession.deleteOne({ _id: session._id });
+      return res
+        .status(400)
+        .json({ message: "Maximum OTP attempts exceeded. Request a new OTP." });
+    }
+
+    const otpOk = await bcrypt.compare(otp, session.otpHash);
+    if (!otpOk) {
+      session.otpAttempts = Number(session.otpAttempts || 0) + 1;
+      await session.save();
+      return res.status(400).json({ message: "Invalid OTP" });
+    }
+
+    const duplicateMsg = await validateSignupUniqueness({
+      email: session.payload?.email,
+      studentId: session.payload?.studentId,
+    });
+    if (duplicateMsg) {
+      await SignupOtpSession.deleteOne({ _id: session._id });
+      return res.status(400).json({ message: duplicateMsg });
+    }
+
+    const user = await User.create({
+      name: session.payload?.name,
+      email: session.payload?.email,
+      password: session.payload?.passwordHash,
+      role: "student",
+      isApproved: false,
+      gender: session.payload?.gender,
+      studentId: session.payload?.studentId,
+      year: session.payload?.year,
+      semester: session.payload?.semester,
+      contactNo: session.payload?.contactNo,
+      guardianName: session.payload?.guardianName,
+      guardianContact: session.payload?.guardianContact,
+      profileImage: session.payload?.profileImage,
+      idCardImage: session.payload?.idCardImage,
+    });
+
+    await SignupOtpSession.deleteOne({ _id: session._id });
+
+    return res.status(201).json({
+      message: "Registered successfully. Await admin approval.",
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
 
 export const register = async (req, res) => {
   try {
@@ -155,6 +350,22 @@ export const login = async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch)
       return res.status(400).json({ message: "Invalid credentials" });
+
+    if (
+      ["warden", "staff"].includes(user.role) &&
+      user.mustChangePasswordOnFirstLogin
+    ) {
+      return res.status(200).json({
+        passwordChangeRequired: true,
+        message: "First login requires password change before account activation.",
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+        },
+      });
+    }
 
     if (user.role === "student" && !user.isApproved) {
       return res.status(403).json({
@@ -587,7 +798,22 @@ export const createWarden = async (req, res) => {
       password: hashed,
       role: "warden",
       isApproved: true,
+      mustChangePasswordOnFirstLogin: true,
+      invitedByRole: "admin",
+      invitedBy: req.user?.id,
     });
+
+    try {
+      await sendOperationalAccountInvitationEmail({
+        toEmail: warden.email,
+        name: warden.name,
+        role: "warden",
+        temporaryPassword: password,
+        invitedByRole: "admin",
+      });
+    } catch (emailError) {
+      console.error("[createWarden] Invitation email failed:", emailError);
+    }
 
     res.status(201).json({
       message: "Warden account created successfully",
@@ -600,6 +826,62 @@ export const createWarden = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+export const changeFirstLoginPassword = async (req, res) => {
+  try {
+    const normalizedEmail = normalizeEmail(req.body?.email);
+    const currentPassword = String(req.body?.currentPassword ?? "");
+    const newPassword = String(req.body?.newPassword ?? "").trim();
+
+    if (!normalizedEmail || !currentPassword || !newPassword) {
+      return res.status(400).json({
+        message: "Email, currentPassword, and newPassword are required",
+      });
+    }
+    if (newPassword.length < FIRST_LOGIN_PASSWORD_MIN_LEN) {
+      return res.status(400).json({
+        message: `Password must be at least ${FIRST_LOGIN_PASSWORD_MIN_LEN} characters`,
+      });
+    }
+
+    const user = await User.findOne(emailQueryFilter(normalizedEmail)).select(
+      "+password",
+    );
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!["warden", "staff"].includes(user.role)) {
+      return res.status(403).json({ message: "First-login flow is only for staff and wardens" });
+    }
+    if (!user.mustChangePasswordOnFirstLogin) {
+      return res.status(400).json({ message: "First-login password change is not required" });
+    }
+
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: "Incorrect current password" });
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    user.mustChangePasswordOnFirstLogin = false;
+    user.firstPasswordChangedAt = new Date();
+    await user.save();
+
+    try {
+      await sendOperationalAccountActivatedEmail({
+        toEmail: user.email,
+        name: user.name,
+        role: user.role,
+      });
+    } catch (emailError) {
+      console.error("[changeFirstLoginPassword] Activation email failed:", emailError);
+    }
+
+    return res.json({
+      message: "Password changed successfully. Your account is now active.",
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
   }
 };
 

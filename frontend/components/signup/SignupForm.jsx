@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
   Pressable,
@@ -11,7 +12,10 @@ import {
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { COLORS } from "../../constants/colors";
-import { register, getAuthErrorMessage } from "../../services/auth.service";
+import {
+  requestSignupOtp,
+  getAuthErrorMessage,
+} from "../../services/auth.service";
 import {
   ROOM_GENDERS,
   ROOM_GENDER_LABELS,
@@ -33,7 +37,8 @@ function inferMimeTypeFromAsset(asset, fallbackName) {
   return "image/jpeg";
 }
 
-export default function SignupForm({ onSuccess }) {
+export default function SignupForm() {
+  const router = useRouter();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [studentId, setStudentId] = useState("");
@@ -136,7 +141,7 @@ export default function SignupForm({ onSuccess }) {
 
     setLoading(true);
     try {
-      const response = await register({
+      const response = await requestSignupOtp({
         name: fullName,
         email,
         password,
@@ -159,8 +164,11 @@ export default function SignupForm({ onSuccess }) {
         },
       });
 
-      Alert.alert("Success", response.message);
-      onSuccess?.();
+      Alert.alert("OTP Sent", response.message || "Check your email for the OTP.");
+      router.push({
+        pathname: "/signup-verify-otp",
+        params: { email: email.trim().toLowerCase() },
+      });
     } catch (error) {
       const message = getAuthErrorMessage(error);
       Alert.alert("Registration Failed", message);
@@ -467,7 +475,7 @@ export default function SignupForm({ onSuccess }) {
         {loading ? (
           <ActivityIndicator color="#FFFFFF" />
         ) : (
-          <Text style={styles.submitButtonText}>Create Account</Text>
+          <Text style={styles.submitButtonText}>Send OTP</Text>
         )}
       </Pressable>
     </View>

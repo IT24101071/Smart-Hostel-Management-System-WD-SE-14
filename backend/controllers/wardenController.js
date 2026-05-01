@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import User from "../models/User.js";
 import bcrypt from "bcryptjs";
+import { sendOperationalAccountInvitationEmail } from "../utils/brevoEmail.js";
 
 const STAFF_ROLE = "staff";
 const STUDENT_ROLE = "student";
@@ -205,13 +206,29 @@ export const createStaff = async (req, res) => {
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
+        const actorRole = req.user?.role === "admin" ? "admin" : "warden";
         const user = await User.create({
             name,
             email,
             password: hashedPassword,
             role: STAFF_ROLE,
             isApproved: true,
+            mustChangePasswordOnFirstLogin: true,
+            invitedByRole: actorRole,
+            invitedBy: req.user?.id ?? req.user?._id,
         });
+
+        try {
+            await sendOperationalAccountInvitationEmail({
+                toEmail: user.email,
+                name: user.name,
+                role: STAFF_ROLE,
+                temporaryPassword: password,
+                invitedByRole: actorRole,
+            });
+        } catch (emailError) {
+            console.error("[createStaff] Invitation email failed:", emailError);
+        }
 
         res.status(201).json({
             message: "Staff account created successfully",
