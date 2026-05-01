@@ -1,6 +1,8 @@
 import express from "express";
 import {
   register,
+  requestRegisterOtp,
+  verifyRegisterOtp,
   login,
   forgotPassword,
   resetPassword,
@@ -19,6 +21,7 @@ import {
   updateUser,
   getAdminAuditLogs,
   getAdminMetrics,
+  changeFirstLoginPassword,
 } from "../controllers/auth.controller.js";
 import { protect, adminOnly } from "../middleware/auth.middleware.js";
 import {
@@ -44,6 +47,16 @@ function patchMeUpload(req, res, next) {
 }
 
 router.post(
+  "/register/request-otp",
+  uploadRoomImages.fields([
+    { name: "profileImage", maxCount: 1 },
+    { name: "idCardImage", maxCount: 1 },
+  ]),
+  handleUploadError,
+  requestRegisterOtp,
+);
+router.post("/register/verify-otp", verifyRegisterOtp);
+router.post(
   "/register",
   uploadRoomImages.fields([
     { name: "profileImage", maxCount: 1 },
@@ -55,6 +68,7 @@ router.post(
 router.post("/login", login);
 router.post("/forgot-password", forgotPassword);
 router.post("/reset-password", resetPassword);
+router.post("/first-login/change-password", changeFirstLoginPassword);
 
 router.post("/create-admin", protect, adminOnly, createAdmin);
 

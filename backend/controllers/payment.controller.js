@@ -1,6 +1,7 @@
 import Booking from "../models/Booking.js";
 import User from "../models/User.js";
 import Room from "../models/Room.js";
+import { sendBookingConfirmationEmail } from "../utils/brevoEmail.js";
 
 // Get all bookings with payment status for admin
 export const getAllBookingsWithPayments = async (req, res) => {
@@ -70,6 +71,23 @@ export const confirmPayment = async (req, res) => {
     booking.bookingStatus = "confirmed";
 
     await booking.save();
+
+    try {
+      const bookingWithDetails = await Booking.findById(id)
+        .populate("student", "name email")
+        .populate("room", "roomNumber roomType gender");
+      if (bookingWithDetails?.student?.email && bookingWithDetails?.room) {
+        await sendBookingConfirmationEmail({
+          toEmail: bookingWithDetails.student.email,
+          studentName: bookingWithDetails.student.name,
+          booking: bookingWithDetails,
+          room: bookingWithDetails.room,
+          includeReceiptAttachment: false,
+        });
+      }
+    } catch (emailError) {
+      console.error("[confirmPayment] Failed to send booking email:", emailError);
+    }
 
     res.status(200).json({
       success: true,

@@ -12,10 +12,16 @@ export async function login(payload) {
   return {
     token: data?.token,
     user: data?.user,
+    passwordChangeRequired: Boolean(data?.passwordChangeRequired),
+    message: data?.message,
   };
 }
 
 export async function register(payload) {
+  return requestSignupOtp(payload);
+}
+
+export async function requestSignupOtp(payload) {
   const form = new FormData();
   form.append("name", payload.name?.trim() ?? "");
   form.append("email", payload.email?.trim() ?? "");
@@ -41,7 +47,7 @@ export async function register(payload) {
   }
 
   const baseUrl = String(apiClient.defaults.baseURL || "").replace(/\/$/, "");
-  const endpoint = `${baseUrl}/auth/register`;
+  const endpoint = `${baseUrl}/auth/register/request-otp`;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 120000);
 
@@ -62,19 +68,27 @@ export async function register(payload) {
 
     if (!res.ok) {
       const error = new Error(
-        parsed?.message || `Registration failed with status ${res.status}`,
+        parsed?.message || `OTP request failed with status ${res.status}`,
       );
       error.response = {
         status: res.status,
-        data: parsed ?? { message: raw || "Registration failed" },
+        data: parsed ?? { message: raw || "OTP request failed" },
       };
       throw error;
     }
 
-    return parsed ?? {};
+    return parsed ?? { message: "OTP sent to your email." };
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+export async function verifySignupOtp(payload) {
+  const { data } = await apiClient.post("/auth/register/verify-otp", {
+    email: payload.email?.trim().toLowerCase(),
+    otp: String(payload.otp ?? "").trim(),
+  });
+  return data;
 }
 
 function extFromMime(mime) {
@@ -114,6 +128,15 @@ export async function resetPassword(payload) {
   const { data } = await apiClient.post("/auth/reset-password", {
     email: payload.email?.trim().toLowerCase(),
     otp: String(payload.otp ?? "").trim(),
+    newPassword: payload.newPassword ?? "",
+  });
+  return data;
+}
+
+export async function changeFirstLoginPassword(payload) {
+  const { data } = await apiClient.post("/auth/first-login/change-password", {
+    email: payload.email?.trim().toLowerCase(),
+    currentPassword: payload.currentPassword ?? "",
     newPassword: payload.newPassword ?? "",
   });
   return data;

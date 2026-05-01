@@ -32,6 +32,15 @@ const userSchema = new mongoose.Schema(
 
     passwordResetOtpHash: { type: String, select: false },
     passwordResetExpires: { type: Date },
+    signupOtpHash: { type: String, select: false },
+    signupOtpExpiresAt: { type: Date },
+    signupOtpAttempts: { type: Number, default: 0 },
+    signupOtpPayload: { type: mongoose.Schema.Types.Mixed, select: false },
+    signupOtpVerifiedAt: { type: Date },
+    mustChangePasswordOnFirstLogin: { type: Boolean, default: false },
+    invitedByRole: { type: String, enum: ["admin", "warden"] },
+    invitedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    firstPasswordChangedAt: { type: Date },
   },
   { timestamps: true },
 );

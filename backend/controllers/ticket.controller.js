@@ -8,6 +8,12 @@ import Ticket, {
 } from "../models/Ticket.js";
 import User from "../models/User.js";
 import { uploadBufferToR2, extractKeyFromUrl, getPresignedUrl } from "../utils/r2Upload.js";
+import {
+  sendTicketAssignedEmailToStaff,
+  sendTicketCreatedEmailToStudent,
+  sendTicketCreatedEmailToWarden,
+  sendTicketResolvedEmailToStudent,
+} from "../utils/brevoEmail.js";
 
 const STAFF_ROLES = ["admin", "warden"];
 const MANAGER_ROLES = ["admin", "warden"];
@@ -213,6 +219,80 @@ function getUploadFailureMessage(error) {
   return "Ticket image upload failed. Please try again.";
 }
 
+async function getTicketWithAllEmailFields(ticketId) {
+  return Ticket.findById(ticketId)
+    .populate("room", "roomNumber")
+    .populate("createdBy", "name email role")
+    .populate("assignedTo", "name email role")
+    .populate("statusLog.changedBy", "name email role");
+}
+
+async function getAllActiveWardens() {
+  return User.find({ role: "warden", isApproved: true }).select("name email");
+}
+
+async function safeSendEmail(label, task) {
+  try {
+    await task();
+  } catch (error) {
+    console.error(`[ticket-email:${label}] send failed:`, error);
+  }
+}
+
+async function sendTicketCreatedEmails(ticket) {
+  const student = ticket?.createdBy;
+  if (student?.email) {
+    await safeSendEmail("student-created", () =>
+      sendTicketCreatedEmailToStudent({
+        toEmail: student.email,
+        studentName: student.name,
+        ticket,
+        room: ticket?.room,
+      }),
+    );
+  }
+
+  const wardens = await getAllActiveWardens();
+  for (const warden of wardens) {
+    if (!warden?.email) continue;
+    await safeSendEmail(`warden-created-${warden._id}`, () =>
+      sendTicketCreatedEmailToWarden({
+        toEmail: warden.email,
+        wardenName: warden.name,
+        ticket,
+        studentName: student?.name || "Student",
+        room: ticket?.room,
+      }),
+    );
+  }
+}
+
+async function sendTicketAssignedEmail(ticket, assignedByName) {
+  const assignee = ticket?.assignedTo;
+  if (!assignee?.email) return;
+  await safeSendEmail(`staff-assigned-${assignee._id}`, () =>
+    sendTicketAssignedEmailToStaff({
+      toEmail: assignee.email,
+      staffName: assignee.name,
+      ticket,
+      assignedByName,
+    }),
+  );
+}
+
+async function sendTicketResolvedEmail(ticket, resolvedByName) {
+  const student = ticket?.createdBy;
+  if (!student?.email) return;
+  await safeSendEmail(`student-resolved-${student._id}`, () =>
+    sendTicketResolvedEmailToStudent({
+      toEmail: student.email,
+      studentName: student.name,
+      ticket,
+      resolvedByName,
+    }),
+  );
+}
+
 async function notifyStudentTicketCreated(ticket) {
   await Notification.create({
     recipient: ticket.createdBy,
@@ -348,6 +428,7 @@ export const createTicket = async (req, res) => {
     await notifyStudentTicketCreated(ticket);
 
     const saved = await populateTicketQuery(Ticket.findById(ticket._id));
+    await sendTicketCreatedEmails(saved);
 
     return res.status(201).json({ ticket: toTicketDto(saved) });
   } catch (error) {
@@ -514,6 +595,10 @@ export const updateTicketStatus = async (req, res) => {
 
     const updated = await populateTicketQuery(Ticket.findById(ticket._id));
     await notifyStudentTicketStatusUpdated(updated, req.user.id, previousStatus);
+    if (updated.status === "Resolved") {
+      const actor = await User.findById(req.user.id).select("name");
+      await sendTicketResolvedEmail(updated, actor?.name || "Support team");
+    }
 
     return res.status(200).json({
       message: "Ticket status updated",
@@ -566,6 +651,11 @@ export const assignTicket = async (req, res) => {
     await ticket.save();
 
     const updated = await populateTicketQuery(Ticket.findById(ticket._id));
+    if (assignedTo) {
+      const actor = await User.findById(req.user.id).select("name");
+      const ticketForEmail = await getTicketWithAllEmailFields(updated._id);
+      await sendTicketAssignedEmail(ticketForEmail, actor?.name || "Manager");
+    }
     if (previousStatus !== updated.status) {
       await notifyStudentTicketStatusUpdated(updated, req.user.id, previousStatus);
     }
