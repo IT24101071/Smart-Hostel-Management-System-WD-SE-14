@@ -69,6 +69,8 @@ The API listens on **`0.0.0.0`**, so it accepts connections from other machines 
 
 5. **Verify:** confirm the terminal prints that the server is listening on your chosen `PORT`.
 
+6. **One-time DB migration (ticket assignees):** If your database still has legacy ticket `assignedTo` fields, run from the `backend/` folder: `node scripts/migrate-tickets-assignees.js` (requires `MONGO_URI` in `.env`). Safe to re-run; it only updates documents that still have `assignedTo` and an empty `assignees` array.
+
 ### Backend environment variables
 
 | Variable | Description |

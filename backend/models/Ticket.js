@@ -4,6 +4,8 @@ export const TICKET_CATEGORIES = ["Plumbing", "Electrical", "Wi-Fi", "Other"];
 export const TICKET_URGENCY = ["Low", "Medium", "High"];
 export const TICKET_STATUSES = ["Open", "In Progress", "Resolved", "Closed"];
 
+export const TICKET_MAX_ASSIGNEES = 10;
+
 const ticketStatusLogSchema = new mongoose.Schema(
   {
     status: {
@@ -114,10 +116,19 @@ const ticketSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
-    assignedTo: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      default: undefined,
+    assignees: {
+      type: [
+        {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+      ],
+      default: [],
+      validate: {
+        validator: (value) =>
+          Array.isArray(value) && value.length <= TICKET_MAX_ASSIGNEES,
+        message: `Maximum ${TICKET_MAX_ASSIGNEES} assignees per ticket`,
+      },
     },
     statusLog: {
       type: [ticketStatusLogSchema],

@@ -37,6 +37,8 @@ const visitorLogSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    /** Set when checkout reminder email was sent; cleared when expectedTimeOut is updated while still checked in */
+    checkoutReminderSentAt: { type: Date, default: null },
   },
   { timestamps: true },
 );

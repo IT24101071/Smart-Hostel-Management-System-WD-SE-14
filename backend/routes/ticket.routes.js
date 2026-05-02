@@ -8,6 +8,7 @@ import {
   getMyTickets,
   getTicketById,
   getTicketImageUrls,
+  updateTicketByStudent,
   updateTicketStatus,
 } from "../controllers/ticket.controller.js";
 import { protect, staffWardenOrAdmin, wardenOrAdmin } from "../middleware/auth.middleware.js";
@@ -18,10 +19,17 @@ const router = express.Router();
 router.get("/me", protect, getMyTickets);
 router.get("/assigned/me", protect, getAssignedTicketsForStaff);
 router.get("/", protect, wardenOrAdmin, getAllTickets);
-router.get("/:id", protect, getTicketById);
 router.get("/:id/image-urls", protect, getTicketImageUrls);
+router.get("/:id", protect, getTicketById);
 router.patch("/:id/status", protect, staffWardenOrAdmin, updateTicketStatus);
 router.patch("/:id/assign", protect, wardenOrAdmin, assignTicket);
+router.patch(
+  "/:id",
+  protect,
+  uploadRoomImages.array("images", 5),
+  handleUploadError,
+  updateTicketByStudent,
+);
 router.post("/:id/notes", protect, addTicketNote);
 router.post("/", protect, uploadRoomImages.array("images", 5), handleUploadError, createTicket);
 

@@ -5,6 +5,7 @@ import Ticket, {
   TICKET_CATEGORIES,
   TICKET_STATUSES,
   TICKET_URGENCY,
+  TICKET_MAX_ASSIGNEES,
 } from "../models/Ticket.js";
 import User from "../models/User.js";
 import { uploadBufferToR2, extractKeyFromUrl, getPresignedUrl } from "../utils/r2Upload.js";
@@ -13,6 +14,7 @@ import {
   sendTicketCreatedEmailToStudent,
   sendTicketCreatedEmailToWarden,
   sendTicketResolvedEmailToStudent,
+  sendTicketUnassignedEmailToStaff,
 } from "../utils/brevoEmail.js";
 
 const STAFF_ROLES = ["admin", "warden"];
@@ -49,11 +51,29 @@ function isStaffWorkerRole(role) {
   return normalizeRole(role) === STAFF_WORKER_ROLE;
 }
 
-function isTicketAssignedToUser(ticket, userId) {
-  const assignedValue = ticket?.assignedTo;
-  const assignedId = assignedValue?._id ?? assignedValue?.id ?? assignedValue;
-  if (!assignedId || !userId) return false;
-  return String(assignedId) === String(userId);
+function assigneeIdStrings(ticket) {
+  const list = Array.isArray(ticket?.assignees) ? ticket.assignees : [];
+  return list.map((a) => String(a._id ?? a ?? ""));
+}
+
+function isTicketAssignedToUser(ticket, userId, userEmail) {
+  if (!userId) return false;
+  const normEmail = userEmail ? String(userEmail).trim().toLowerCase() : "";
+  const list = Array.isArray(ticket?.assignees) ? ticket.assignees : [];
+  for (const entry of list) {
+    const id = entry?._id ?? entry?.id ?? entry;
+    if (id && String(id) === String(userId)) return true;
+    if (normEmail && entry?.email) {
+      const em = String(entry.email).trim().toLowerCase();
+      if (em && em === normEmail) return true;
+    }
+  }
+  return false;
+}
+
+function ticketHasAssignees(ticket) {
+  const list = Array.isArray(ticket?.assignees) ? ticket.assignees : [];
+  return list.length > 0;
 }
 
 function respondControllerError(error, res) {
@@ -80,16 +100,41 @@ function requireStudent(req, res) {
   return true;
 }
 
+/** Student may edit content only while ticket is not terminal and has no assignee. */
+function canStudentEditTicketForUpdate(ticket) {
+  if (!ticket) return false;
+  if (["Resolved", "Closed"].includes(ticket.status)) return false;
+  return !ticketHasAssignees(ticket);
+}
+
 function populateTicketQuery(query) {
   return query
     .populate("room", TICKET_POPULATE_SELECT.room)
     .populate("createdBy", TICKET_POPULATE_SELECT.user)
-    .populate("assignedTo", TICKET_POPULATE_SELECT.user)
+    .populate("assignees", TICKET_POPULATE_SELECT.user)
     .populate("statusLog.changedBy", TICKET_POPULATE_SELECT.user);
+}
+
+function mapAssigneesToDto(assignees) {
+  const list = Array.isArray(assignees) ? assignees : [];
+  return list
+    .map((u) => {
+      if (!u) return null;
+      const id = u._id ?? u.id ?? u;
+      if (!id) return null;
+      return {
+        id,
+        name: u.name ?? "",
+        email: u.email ?? "",
+      };
+    })
+    .filter(Boolean);
 }
 
 function toTicketDto(ticket) {
   const images = Array.isArray(ticket.images) ? ticket.images : [];
+  const assigneeDtos = mapAssigneesToDto(ticket.assignees);
+  const assignedToCompat = assigneeDtos[0] ?? null;
   return {
     id: ticket._id,
     ticketNumber: ticket.ticketNumber,
@@ -117,13 +162,8 @@ function toTicketDto(ticket) {
           email: ticket.createdBy.email,
         }
       : null,
-    assignedTo: ticket.assignedTo
-      ? {
-          id: ticket.assignedTo._id ?? ticket.assignedTo.id,
-          name: ticket.assignedTo.name,
-          email: ticket.assignedTo.email,
-        }
-      : null,
+    assignees: assigneeDtos,
+    assignedTo: assignedToCompat,
     statusLog: Array.isArray(ticket.statusLog)
       ? ticket.statusLog.map((entry) => ({
           status: entry.status,
@@ -223,7 +263,7 @@ async function getTicketWithAllEmailFields(ticketId) {
   return Ticket.findById(ticketId)
     .populate("room", "roomNumber")
     .populate("createdBy", "name email role")
-    .populate("assignedTo", "name email role")
+    .populate("assignees", "name email role")
     .populate("statusLog.changedBy", "name email role");
 }
 
@@ -267,17 +307,48 @@ async function sendTicketCreatedEmails(ticket) {
   }
 }
 
-async function sendTicketAssignedEmail(ticket, assignedByName) {
-  const assignee = ticket?.assignedTo;
-  if (!assignee?.email) return;
-  await safeSendEmail(`staff-assigned-${assignee._id}`, () =>
-    sendTicketAssignedEmailToStaff({
-      toEmail: assignee.email,
-      staffName: assignee.name,
-      ticket,
-      assignedByName,
-    }),
-  );
+async function sendTicketAssignedEmailsForNewIds(ticketId, newAssigneeIds, assignedByName) {
+  if (!Array.isArray(newAssigneeIds) || newAssigneeIds.length === 0) return;
+  const ticket = await getTicketWithAllEmailFields(ticketId);
+  if (!ticket) return;
+  const list = Array.isArray(ticket.assignees) ? ticket.assignees : [];
+  const idSet = new Set(newAssigneeIds.map((id) => String(id)));
+  for (const assignee of list) {
+    const aid = assignee?._id ?? assignee?.id;
+    if (!aid || !idSet.has(String(aid))) continue;
+    if (!assignee?.email) continue;
+    await safeSendEmail(`staff-assigned-${aid}`, () =>
+      sendTicketAssignedEmailToStaff({
+        toEmail: assignee.email,
+        staffName: assignee.name,
+        ticket,
+        assignedByName,
+      }),
+    );
+  }
+}
+
+async function sendTicketUnassignedEmailsForRemovedIds(
+  ticketId,
+  removedAssigneeIds,
+  removedByName,
+) {
+  if (!Array.isArray(removedAssigneeIds) || removedAssigneeIds.length === 0) return;
+  const ticket = await getTicketWithAllEmailFields(ticketId);
+  if (!ticket) return;
+  for (const rid of removedAssigneeIds) {
+    const idStr = String(rid);
+    const user = await User.findById(rid).select("name email");
+    if (!user?.email) continue;
+    await safeSendEmail(`staff-unassigned-${idStr}-${ticketId}`, () =>
+      sendTicketUnassignedEmailToStaff({
+        toEmail: user.email,
+        staffName: user.name,
+        ticket,
+        removedByName,
+      }),
+    );
+  }
 }
 
 async function sendTicketResolvedEmail(ticket, resolvedByName) {
@@ -436,6 +507,91 @@ export const createTicket = async (req, res) => {
   }
 };
 
+export const updateTicketByStudent = async (req, res) => {
+  try {
+    if (!requireStudent(req, res)) return;
+
+    const ticket = await Ticket.findById(req.params.id);
+    if (!ticket) {
+      return res.status(404).json({ message: "Ticket not found" });
+    }
+
+    const ownerId = ticket.createdBy?._id ?? ticket.createdBy;
+    if (String(ownerId) !== String(req.user.id)) {
+      return res.status(403).json({ message: "You can only edit your own tickets" });
+    }
+
+    if (!canStudentEditTicketForUpdate(ticket)) {
+      return res.status(403).json({
+        message:
+          "Ticket can no longer be edited because it is resolved, closed, or assigned to staff.",
+      });
+    }
+
+    const category = sanitizeText(req.body?.category);
+    const subject = sanitizeText(req.body?.subject);
+    const description = sanitizeText(req.body?.description);
+    const urgency = sanitizeText(req.body?.urgency) || "Medium";
+
+    if (!TICKET_CATEGORIES.includes(category)) {
+      return res.status(400).json({ message: "Invalid ticket category" });
+    }
+    if (!subject || subject.length < 5) {
+      return res
+        .status(400)
+        .json({ message: "Subject must be at least 5 characters long" });
+    }
+    if (!description || description.length < 10) {
+      return res
+        .status(400)
+        .json({ message: "Description must be at least 10 characters long" });
+    }
+    if (!TICKET_URGENCY.includes(urgency)) {
+      return res.status(400).json({ message: "Invalid urgency level" });
+    }
+
+    const files = Array.isArray(req.files) ? req.files : req.file ? [req.file] : [];
+    let uploadedImages = null;
+    if (files.length > 0) {
+      uploadedImages = [];
+      try {
+        for (const file of files) {
+          const url = await uploadBufferToR2(
+            file.buffer,
+            file.originalname,
+            file.mimetype,
+            "tickets",
+          );
+          uploadedImages.push({
+            url,
+            name: file.originalname ?? "ticket-image",
+          });
+        }
+      } catch (uploadError) {
+        return res.status(502).json({ message: getUploadFailureMessage(uploadError) });
+      }
+    }
+
+    ticket.category = category;
+    ticket.subject = subject;
+    ticket.description = description;
+    ticket.urgency = urgency;
+
+    if (uploadedImages && uploadedImages.length > 0) {
+      ticket.images = uploadedImages;
+      ticket.imageUrl = uploadedImages[0]?.url ?? "";
+      ticket.imageName = uploadedImages[0]?.name ?? "";
+    }
+
+    await ticket.save();
+
+    const saved = await populateTicketQuery(Ticket.findById(ticket._id));
+    return res.status(200).json({ ticket: toTicketDto(saved) });
+  } catch (error) {
+    return respondControllerError(error, res);
+  }
+};
+
 export const getMyTickets = async (req, res) => {
   try {
     if (!requireStudent(req, res)) return;
@@ -494,7 +650,7 @@ export const getAssignedTicketsForStaff = async (req, res) => {
     }
 
     const tickets = await populateTicketQuery(
-      Ticket.find({ ...filter, assignedTo: req.user.id }),
+      Ticket.find({ ...filter, assignees: req.user.id }),
     ).sort({
       updatedAt: -1,
     });
@@ -519,7 +675,7 @@ export const getTicketById = async (req, res) => {
     const ticket = await Ticket.findById(req.params.id)
       .populate("room", TICKET_POPULATE_SELECT.room)
       .populate("createdBy", TICKET_POPULATE_SELECT.userWithRole)
-      .populate("assignedTo", TICKET_POPULATE_SELECT.userWithRole)
+      .populate("assignees", TICKET_POPULATE_SELECT.userWithRole)
       .populate("statusLog.changedBy", TICKET_POPULATE_SELECT.userWithRole);
     if (!ticket) {
       return res.status(404).json({ message: "Ticket not found" });
@@ -527,7 +683,7 @@ export const getTicketById = async (req, res) => {
 
     const isOwner = String(ticket.createdBy?._id) === String(req.user.id);
     const isManager = isManagerRole(req.user.role);
-    const isAssignee = isTicketAssignedToUser(ticket, req.user.id);
+    const isAssignee = isTicketAssignedToUser(ticket, req.user.id, req.user.email);
     if (!isOwner && !isManager && !isAssignee) {
       return res.status(403).json({ message: "Access denied" });
     }
@@ -559,7 +715,7 @@ export const updateTicketStatus = async (req, res) => {
     if (!isManager && !isAssignee) {
       return res.status(403).json({ message: "Access denied" });
     }
-    if (isManager && ticket.assignedTo && status !== "Resolved") {
+    if (isManager && ticketHasAssignees(ticket) && status !== "Resolved") {
       return res.status(403).json({
         message: "Assigned staff controls this ticket. Managers can only mark it as Resolved.",
       });
@@ -584,7 +740,17 @@ export const updateTicketStatus = async (req, res) => {
     const previousStatus = ticket.status;
     ticket.status = status;
     if (isAssignee && !isManager) {
-      ticket.assignedTo = req.user.id;
+      const sid = req.user.id;
+      const raw = ticket.assignees || [];
+      const hasMe = raw.some((id) => String(id) === String(sid));
+      if (!hasMe) {
+        if (raw.length >= TICKET_MAX_ASSIGNEES) {
+          return res.status(400).json({
+            message: `At most ${TICKET_MAX_ASSIGNEES} assignees per ticket`,
+          });
+        }
+        ticket.assignees = [...raw, sid];
+      }
     }
     ticket.statusLog.push({
       status,
@@ -609,6 +775,40 @@ export const updateTicketStatus = async (req, res) => {
   }
 };
 
+function requestsAssignmentMutation(body) {
+  if (body.assigneeIds !== undefined) return true;
+  if (body.clearAssignees === true) return true;
+  if (sanitizeText(body.removeAssignee)) return true;
+  const add = sanitizeText(body.addAssignee ?? body.assignedTo);
+  if (add) return true;
+  if (body.assignedTo !== undefined && sanitizeText(body.assignedTo) === "") return true;
+  return false;
+}
+
+async function validateStaffObjectIds(rawIds) {
+  const unique = [...new Set((rawIds || []).map((id) => String(id).trim()).filter(Boolean))];
+  if (unique.length > TICKET_MAX_ASSIGNEES) {
+    return { error: `At most ${TICKET_MAX_ASSIGNEES} assignees allowed` };
+  }
+  const objectIds = [];
+  for (const id of unique) {
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return { error: "Invalid staff id" };
+    }
+    objectIds.push(new mongoose.Types.ObjectId(id));
+  }
+  const users = await User.find({ _id: { $in: objectIds } }).select("role name email");
+  if (users.length !== unique.length) {
+    return { error: "One or more staff users not found" };
+  }
+  for (const u of users) {
+    if (!ASSIGNEE_ROLES.includes(normalizeRole(u.role))) {
+      return { error: "Assigned users must be staff members" };
+    }
+  }
+  return { objectIds };
+}
+
 export const assignTicket = async (req, res) => {
   try {
     if (!requireAuthenticatedUser(req, res)) return;
@@ -616,7 +816,6 @@ export const assignTicket = async (req, res) => {
       return res.status(403).json({ message: "Access denied" });
     }
 
-    const assignedTo = sanitizeText(req.body?.assignedTo);
     const note = sanitizeText(req.body?.note);
 
     const ticket = await Ticket.findById(req.params.id);
@@ -624,38 +823,94 @@ export const assignTicket = async (req, res) => {
       return res.status(404).json({ message: "Ticket not found" });
     }
 
-    const previousStatus = ticket.status;
-    if (!assignedTo) {
-      ticket.assignedTo = undefined;
-      ticket.statusLog.push({
-        status: ticket.status,
-        changedBy: req.user.id,
-        note: note || "Ticket assignee removed",
+    if (["Resolved", "Closed"].includes(ticket.status) && requestsAssignmentMutation(req.body)) {
+      return res.status(403).json({
+        message: "Assignment cannot be changed while the ticket is resolved or closed.",
       });
-    } else {
-      const assignee = await User.findById(assignedTo).select("role name email");
+    }
+
+    const previousStatus = ticket.status;
+    const prevSet = new Set(assigneeIdStrings(ticket));
+    let newAssigneeIdsForEmail = [];
+    let logNote = "";
+
+    if (req.body.assigneeIds !== undefined) {
+      if (!Array.isArray(req.body.assigneeIds)) {
+        return res.status(400).json({ message: "assigneeIds must be an array" });
+      }
+      const { error, objectIds } = await validateStaffObjectIds(req.body.assigneeIds);
+      if (error) return res.status(400).json({ message: error });
+      newAssigneeIdsForEmail = objectIds.filter((id) => !prevSet.has(String(id)));
+      ticket.assignees = objectIds;
+      logNote =
+        note ||
+        (objectIds.length === 0
+          ? "Assignees cleared"
+          : `Assignees set (${objectIds.length} staff)`);
+    } else if (req.body.clearAssignees === true) {
+      ticket.assignees = [];
+      logNote = note || "All assignees cleared";
+    } else if (sanitizeText(req.body.removeAssignee)) {
+      const rid = sanitizeText(req.body.removeAssignee);
+      ticket.assignees = (ticket.assignees || []).filter((id) => String(id) !== rid);
+      logNote = note || "Assignee removed";
+    } else if (sanitizeText(req.body.addAssignee) || sanitizeText(req.body.assignedTo)) {
+      const addId = sanitizeText(req.body.addAssignee) || sanitizeText(req.body.assignedTo);
+      const assignee = await User.findById(addId).select("role name email");
       if (!assignee || !ASSIGNEE_ROLES.includes(normalizeRole(assignee.role))) {
         return res.status(400).json({ message: "Assigned user must be a staff member" });
       }
-
-      ticket.assignedTo = assignee._id;
-      if (ticket.status === "Open") {
-        ticket.status = "In Progress";
+      const ids = (ticket.assignees || []).map((x) => String(x));
+      if (!ids.includes(String(assignee._id))) {
+        if (ids.length >= TICKET_MAX_ASSIGNEES) {
+          return res.status(400).json({
+            message: `At most ${TICKET_MAX_ASSIGNEES} assignees allowed`,
+          });
+        }
+        ticket.assignees = [...(ticket.assignees || []), assignee._id];
+        newAssigneeIdsForEmail.push(assignee._id);
       }
-      ticket.statusLog.push({
-        status: ticket.status,
-        changedBy: req.user.id,
-        note: note || `Ticket assigned to ${assignee.name}`,
+      logNote = note || `Added assignee ${assignee.name}`;
+    } else if (req.body.assignedTo !== undefined && sanitizeText(req.body.assignedTo) === "") {
+      ticket.assignees = [];
+      logNote = note || "All assignees cleared";
+    } else {
+      return res.status(400).json({
+        message:
+          "Specify assigneeIds, clearAssignees, removeAssignee, addAssignee, or assignedTo (empty string clears)",
       });
     }
+
+    const beforeCount = prevSet.size;
+    const afterCount = (ticket.assignees || []).length;
+    if (beforeCount === 0 && afterCount > 0 && ticket.status === "Open") {
+      ticket.status = "In Progress";
+    }
+
+    ticket.statusLog.push({
+      status: ticket.status,
+      changedBy: req.user.id,
+      note: logNote,
+    });
+
     await ticket.save();
 
     const updated = await populateTicketQuery(Ticket.findById(ticket._id));
-    if (assignedTo) {
-      const actor = await User.findById(req.user.id).select("name");
-      const ticketForEmail = await getTicketWithAllEmailFields(updated._id);
-      await sendTicketAssignedEmail(ticketForEmail, actor?.name || "Manager");
-    }
+    const actor = await User.findById(req.user.id).select("name");
+    const afterAssigneeSet = new Set(assigneeIdStrings(updated));
+    const removedAssigneeIdsForEmail = [...prevSet].filter(
+      (id) => id && !afterAssigneeSet.has(id),
+    );
+    await sendTicketAssignedEmailsForNewIds(
+      updated._id,
+      newAssigneeIdsForEmail,
+      actor?.name || "Manager",
+    );
+    await sendTicketUnassignedEmailsForRemovedIds(
+      updated._id,
+      removedAssigneeIdsForEmail,
+      actor?.name || "Manager",
+    );
     if (previousStatus !== updated.status) {
       await notifyStudentTicketStatusUpdated(updated, req.user.id, previousStatus);
     }
@@ -673,7 +928,7 @@ export const getTicketImageUrls = async (req, res) => {
     if (!requireAuthenticatedUser(req, res)) return;
 
     const ticket = await Ticket.findById(req.params.id).select(
-      "images imageUrl imageName createdBy assignedTo",
+      "images imageUrl imageName createdBy assignees",
     );
     if (!ticket) {
       return res.status(404).json({ message: "Ticket not found" });
@@ -681,7 +936,7 @@ export const getTicketImageUrls = async (req, res) => {
 
     const isOwner = String(ticket.createdBy) === String(req.user.id);
     const isManager = isManagerRole(req.user.role);
-    const isAssignee = isTicketAssignedToUser(ticket, req.user.id);
+    const isAssignee = isTicketAssignedToUser(ticket, req.user.id, req.user.email);
     if (!isOwner && !isManager && !isAssignee) {
       return res.status(403).json({ message: "Access denied" });
     }
@@ -721,17 +976,16 @@ export const addTicketNote = async (req, res) => {
       return res.status(400).json({ message: "Note must be at least 3 characters long" });
     }
 
-    const ticket = await Ticket.findById(req.params.id).populate(
-      "createdBy",
-      TICKET_POPULATE_SELECT.userWithRole,
-    );
+    const ticket = await Ticket.findById(req.params.id)
+      .populate("createdBy", TICKET_POPULATE_SELECT.userWithRole)
+      .populate("assignees", TICKET_POPULATE_SELECT.userWithRole);
     if (!ticket) {
       return res.status(404).json({ message: "Ticket not found" });
     }
 
     const isOwner = String(ticket.createdBy?._id) === String(req.user.id);
     const isManager = isManagerRole(req.user.role);
-    const isAssignee = isTicketAssignedToUser(ticket, req.user.id);
+    const isAssignee = isTicketAssignedToUser(ticket, req.user.id, req.user.email);
     if (!isOwner && !isManager && !isAssignee) {
       return res.status(403).json({ message: "Access denied" });
     }

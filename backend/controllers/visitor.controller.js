@@ -4,6 +4,9 @@ import Room from "../models/Room.js";
 import User from "../models/User.js";
 import VisitorLog from "../models/VisitorLog.js";
 import { uploadBufferToR2 } from "../utils/r2Upload.js";
+import {
+  sendVisitorCheckInEmailToStudent,
+} from "../utils/brevoEmail.js";
 
 function sanitizeText(value) {
   return String(value ?? "").trim();
@@ -30,6 +33,14 @@ async function findLatestConfirmedBooking(studentId) {
   })
     .sort({ createdAt: -1 })
     .populate("room", "roomNumber");
+}
+
+async function safeSendVisitorEmail(label, task) {
+  try {
+    await task();
+  } catch (error) {
+    console.error(`[visitor-email:${label}] send failed:`, error);
+  }
 }
 
 async function resolveStudent(studentName, studentIdOrRoom) {
@@ -160,6 +171,23 @@ export const checkInVisitor = async (req, res) => {
       enteredBy: req.user.id,
     });
 
+    const hostUser = await User.findById(studentMatch.student._id).select(
+      "email name",
+    );
+    if (hostUser?.email) {
+      await safeSendVisitorEmail(`check-in-${created._id}`, () =>
+        sendVisitorCheckInEmailToStudent({
+          toEmail: hostUser.email,
+          studentName: hostUser.name,
+          visitorName: fullName,
+          roomNumber: studentMatch.roomNumber || "",
+          purposeOfVisit,
+          expectedTimeOut,
+          checkedInAt: created.checkInAt,
+        }),
+      );
+    }
+
     return res.status(201).json({
       message: "Visitor checked in successfully",
       data: toVisitorDto(created),
@@ -240,12 +268,18 @@ export const updateVisitor = async (req, res) => {
       return res.status(400).json({ message: "Expected time out must be in the future" });
     }
 
+    const prevExpectedMs = new Date(visitor.expectedTimeOut).getTime();
+    const nextExpectedMs = new Date(expectedTimeOut).getTime();
+
     visitor.fullName = fullName;
     visitor.nationalIdOrPassport = nationalIdOrPassport;
     visitor.contactNumber = contactNumber;
     visitor.relationshipToStudent = relationshipToStudent;
     visitor.purposeOfVisit = purposeOfVisit;
     visitor.expectedTimeOut = expectedTimeOut;
+    if (nextExpectedMs !== prevExpectedMs) {
+      visitor.checkoutReminderSentAt = undefined;
+    }
     await visitor.save();
 
     return res.status(200).json({

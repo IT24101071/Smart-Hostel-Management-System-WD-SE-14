@@ -29,6 +29,16 @@ const DASHBOARD_ITEMS = [
     active: true,
   },
   {
+    id: "staff",
+    title: "Staff management",
+    description: "Add, edit & remove staff (created by warden or admin)",
+    icon: "briefcase-outline",
+    iconColor: "#0D9488",
+    iconBg: "#CCFBF1",
+    route: "/admin/staff",
+    active: true,
+  },
+  {
     id: "rooms",
     title: "Room Management",
     description: "Add, edit & manage hostel rooms",

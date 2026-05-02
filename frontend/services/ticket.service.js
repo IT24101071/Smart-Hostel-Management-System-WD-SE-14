@@ -77,6 +77,26 @@ export async function createTicket(payload) {
   return mapTicket(data.ticket);
 }
 
+export async function updateMyTicket(id, payload) {
+  const withImages = hasTicketImages(payload);
+  const requestBody = withImages
+    ? await buildTicketFormData(payload)
+    : {
+        category: payload.category,
+        subject: payload.subject?.trim?.() ?? "",
+        description: payload.description?.trim?.() ?? "",
+        urgency: payload.urgency,
+      };
+  const { data } = await apiClient.patch(
+    `/tickets/${encodeURIComponent(id)}`,
+    requestBody,
+    {
+      timeout: withImages ? 120000 : undefined,
+    },
+  );
+  return mapTicket(data.ticket);
+}
+
 export async function getMyTickets() {
   const { data } = await apiClient.get("/tickets/me");
   const list = Array.isArray(data?.data) ? data.data : [];
@@ -130,19 +150,39 @@ export async function updateTicketStatus(id, payload) {
 }
 
 export async function assignTicket(id, payload) {
-  const assignedToRaw = payload.assignedTo;
-  const assignedTo =
-    assignedToRaw === null ||
-    assignedToRaw === undefined ||
-    String(assignedToRaw).trim() === ""
-      ? ""
-      : String(assignedToRaw).trim();
+  const body = {
+    note: payload.note?.trim() || "",
+  };
+  if (payload.assigneeIds !== undefined) {
+    body.assigneeIds = payload.assigneeIds;
+  }
+  if (payload.clearAssignees === true) {
+    body.clearAssignees = true;
+  }
+  if (
+    payload.removeAssignee != null &&
+    String(payload.removeAssignee).trim() !== ""
+  ) {
+    body.removeAssignee = String(payload.removeAssignee).trim();
+  }
+  if (
+    payload.addAssignee != null &&
+    String(payload.addAssignee).trim() !== ""
+  ) {
+    body.addAssignee = String(payload.addAssignee).trim();
+  }
+  if (payload.assignedTo !== undefined) {
+    const assignedToRaw = payload.assignedTo;
+    body.assignedTo =
+      assignedToRaw === null ||
+      assignedToRaw === undefined ||
+      String(assignedToRaw).trim() === ""
+        ? ""
+        : String(assignedToRaw).trim();
+  }
   const { data } = await apiClient.patch(
     `/tickets/${encodeURIComponent(id)}/assign`,
-    {
-      assignedTo,
-      note: payload.note?.trim() || "",
-    },
+    body,
   );
   return mapTicket(data?.ticket);
 }
