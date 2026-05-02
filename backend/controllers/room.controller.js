@@ -165,6 +165,7 @@ export const updateRoom = async (req, res) => {
     if (!room) return res.status(404).json({ message: "Room not found" });
 
     const {
+      roomNumber,
       pricePerMonth,
       capacity,
       description,
@@ -174,6 +175,20 @@ export const updateRoom = async (req, res) => {
       imageAction = "append",
       keptImageUrls: keptImageUrlsRaw,
     } = req.body;
+
+    if (roomNumber !== undefined && String(roomNumber).trim() !== "") {
+      const trimmed = String(roomNumber).trim();
+      if (trimmed !== room.roomNumber) {
+        const taken = await Room.findOne({
+          roomNumber: trimmed,
+          _id: { $ne: room._id },
+        });
+        if (taken) {
+          return res.status(409).json({ message: "roomNumber already exists" });
+        }
+      }
+      room.roomNumber = trimmed;
+    }
 
     if (gender !== undefined) {
       if (!GENDERS.includes(gender)) {
@@ -281,11 +296,16 @@ export const updateRoom = async (req, res) => {
         .json({ message: "currentOccupancy cannot be greater than capacity" });
     }
 
-    room.availabilityStatus = recalculateAvailability({
-      currentOccupancy: room.currentOccupancy,
-      capacity: room.capacity,
-      status: room.availabilityStatus,
-    });
+    // Keep admin-set status when the client sends it; otherwise derive from occupancy (e.g. partial API updates).
+    if (
+      !Object.prototype.hasOwnProperty.call(req.body, "availabilityStatus")
+    ) {
+      room.availabilityStatus = recalculateAvailability({
+        currentOccupancy: room.currentOccupancy,
+        capacity: room.capacity,
+        status: room.availabilityStatus,
+      });
+    }
 
     await room.save();
     return res.status(200).json(room);

@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -47,9 +48,14 @@ export default function RoomsScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchRooms();
-  }, [fetchRooms]);
+  const hasFocusedOnce = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      fetchRooms(hasFocusedOnce.current);
+      hasFocusedOnce.current = true;
+      return undefined;
+    }, [fetchRooms]),
+  );
 
   function onRefresh() {
     setRefreshing(true);
@@ -73,7 +79,9 @@ export default function RoomsScreen() {
           onPress: async () => {
             try {
               await deleteRoom(room.id);
-              setRooms((prev) => prev.filter((r) => r.id !== room.id));
+              setRooms((prev) =>
+                prev.filter((r) => String(r.id) !== String(room.id)),
+              );
             } catch (err) {
               Alert.alert("Error", getRoomErrorMessage(err));
             }

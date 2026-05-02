@@ -3,7 +3,6 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -41,7 +40,8 @@ function roomToFormValues(room) {
 
 export default function EditRoomScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams();
+  const { id: rawId } = useLocalSearchParams();
+  const id = Array.isArray(rawId) ? rawId[0] : rawId;
 
   const [room, setRoom] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -69,20 +69,8 @@ export default function EditRoomScreen() {
     setApiError("");
     setSubmitting(true);
     try {
-      const updated = await updateRoom(id, values);
-      Alert.alert(
-        "Success",
-        `Room ${updated.roomNumber} has been updated successfully.`,
-        [
-          {
-            text: "OK",
-            onPress: () =>
-              router.replace(
-                `/admin/rooms/${encodeURIComponent(String(updated.id ?? id))}`,
-              ),
-          },
-        ],
-      );
+      await updateRoom(id, values);
+      router.replace("/admin/rooms");
     } catch (err) {
       setApiError(getRoomErrorMessage(err));
     } finally {
