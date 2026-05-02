@@ -29,7 +29,8 @@ const SCREEN_WIDTH = Dimensions.get("window").width;
 
 export default function RoomDetailScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams();
+  const { id: rawId } = useLocalSearchParams();
+  const id = Array.isArray(rawId) ? rawId[0] : rawId;
 
   const [room, setRoom] = useState(null);
   const [loading, setLoading] = useState(true);

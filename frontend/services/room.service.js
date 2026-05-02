@@ -5,7 +5,8 @@ import apiClient from "../lib/axios";
 import { storage } from "../lib/storage";
 function mapRoom(r) {
   const { _id, ...rest } = r;
-  return { ...rest, id: _id };
+  const id = _id != null ? String(_id) : undefined;
+  return { ...rest, id };
 }
 
 export async function getRooms(params = { limit: 100 }) {
@@ -50,23 +51,41 @@ export async function createRoom(values) {
   return mapRoom(data);
 }
 
+/** URLs already hosted on R2/backend (not new local uploads). */
+function extractKeptRemoteImageUrls(imageUris) {
+  const list = Array.isArray(imageUris) ? imageUris : [];
+  const urls = list
+    .map((item) => (typeof item === "string" ? item : item?.uri))
+    .filter(
+      (u) =>
+        typeof u === "string" &&
+        (u.startsWith("http://") || u.startsWith("https://")),
+    );
+  return urls;
+}
+
 export async function updateRoom(id, values) {
   console.log("[room.service] updateRoom - imageUris:", values.imageUris);
 
   if (values.imageUris?.length) {
+    const keptUrls = extractKeptRemoteImageUrls(values.imageUris);
     console.log(
       "[room.service] Building FormData with",
       values.imageUris.length,
-      "images",
+      "slots (kept URLs:",
+      keptUrls.length,
+      ")",
     );
     const form = await buildFormData(
       {
+        roomNumber: values.roomNumber.trim(),
         roomType: values.roomType,
+        gender: values.gender,
         pricePerMonth: String(Number(values.pricePerMonth)),
         capacity: String(values.capacity),
         description: values.description.trim(),
         availabilityStatus: values.availabilityStatus,
-        imageAction: "append",
+        keptImageUrls: JSON.stringify(keptUrls),
       },
       values.imageUris,
     );
@@ -78,7 +97,9 @@ export async function updateRoom(id, values) {
     "[room.service] No images to upload, sending data without FormData",
   );
   const { data } = await apiClient.put(`/rooms/${id}`, {
+    roomNumber: values.roomNumber.trim(),
     roomType: values.roomType,
+    gender: values.gender,
     pricePerMonth: Number(values.pricePerMonth),
     capacity: values.capacity,
     description: values.description.trim(),
@@ -88,7 +109,12 @@ export async function updateRoom(id, values) {
 }
 
 export async function deleteRoom(id) {
-  await apiClient.delete(`/rooms/${id}`);
+  const roomId = String(id ?? "").trim();
+  if (!roomId) {
+    const err = new Error("Invalid room id");
+    throw err;
+  }
+  await apiClient.delete(`/rooms/${encodeURIComponent(roomId)}`);
 }
 
 async function buildFormData(fields, imageUris) {
@@ -217,6 +243,8 @@ export function getRoomErrorMessage(error) {
     if (error.code === "ECONNABORTED")
       return "Request timed out. Please try again.";
   }
+  const msg = error?.message;
+  if (typeof msg === "string" && msg.trim()) return msg;
   console.error("[room.service] Unhandled error:", error);
   return "Something went wrong. Please try again.";
 }

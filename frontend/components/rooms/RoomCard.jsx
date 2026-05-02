@@ -11,74 +11,76 @@ export default function RoomCard({ room, onView, onEdit, onDelete }) {
   const multiBed = Number.isFinite(cap) && cap > 1;
 
   return (
-    <Pressable style={styles.card} onPress={onView}>
-      {coverImage && (
-        <Image
-          source={{ uri: coverImage }}
-          style={styles.coverImage}
-          resizeMode="cover"
-        />
-      )}
-
-      <View style={styles.cardHeader}>
-        <View style={styles.headerLeft}>
-          <View style={styles.roomIconBox}>
-            <Ionicons name="bed-outline" size={18} color={COLORS.primary} />
-          </View>
-          <View>
-            <Text style={styles.roomNumber}>Room {room.roomNumber}</Text>
-            <Text style={styles.roomType}>{room.roomType} Room</Text>
-          </View>
-        </View>
-        <View
-          style={[
-            styles.statusBadge,
-            {
-              backgroundColor: statusStyle.bg,
-              borderColor: statusStyle.border,
-            },
-          ]}
-        >
-          <View
-            style={[styles.statusDot, { backgroundColor: statusStyle.text }]}
+    <View style={styles.card}>
+      <Pressable style={styles.cardMain} onPress={onView}>
+        {coverImage && (
+          <Image
+            source={{ uri: coverImage }}
+            style={styles.coverImage}
+            resizeMode="cover"
           />
-          <Text style={[styles.statusText, { color: statusStyle.text }]}>
-            {room.availabilityStatus}
-          </Text>
-        </View>
-      </View>
+        )}
 
-      {multiBed ? (
-        <View style={styles.occupancyBlock}>
-          <OccupancyGenderBar room={room} variant="admin" />
-        </View>
-      ) : null}
-
-      <View style={styles.infoStrip}>
-        {!multiBed ? (
-          <>
-            <View style={styles.infoItem}>
-              <Ionicons name="people-outline" size={14} color={COLORS.textMuted} />
-              <Text style={styles.infoText}>
-                {room.currentOccupancy}/{room.capacity} occupied
-              </Text>
+        <View style={styles.cardHeader}>
+          <View style={styles.headerLeft}>
+            <View style={styles.roomIconBox}>
+              <Ionicons name="bed-outline" size={18} color={COLORS.primary} />
             </View>
-            <View style={styles.infoDivider} />
-          </>
-        ) : null}
-        <View style={[styles.infoItem, multiBed && styles.infoItemGrow]}>
-          <Ionicons name="cash-outline" size={14} color={COLORS.textMuted} />
-          <Text style={styles.infoText}>
-            Rs. {room.pricePerMonth.toLocaleString()}/mo
-          </Text>
+            <View>
+              <Text style={styles.roomNumber}>Room {room.roomNumber}</Text>
+              <Text style={styles.roomType}>{room.roomType} Room</Text>
+            </View>
+          </View>
+          <View
+            style={[
+              styles.statusBadge,
+              {
+                backgroundColor: statusStyle.bg,
+                borderColor: statusStyle.border,
+              },
+            ]}
+          >
+            <View
+              style={[styles.statusDot, { backgroundColor: statusStyle.text }]}
+            />
+            <Text style={[styles.statusText, { color: statusStyle.text }]}>
+              {room.availabilityStatus}
+            </Text>
+          </View>
         </View>
-      </View>
 
-      {room.description ? (
-        <Text style={styles.description} numberOfLines={2}>
-          {room.description}
-        </Text>
-      ) : null}
+        {multiBed ? (
+          <View style={styles.occupancyBlock}>
+            <OccupancyGenderBar room={room} variant="admin" />
+          </View>
+        ) : null}
+
+        <View style={styles.infoStrip}>
+          {!multiBed ? (
+            <>
+              <View style={styles.infoItem}>
+                <Ionicons name="people-outline" size={14} color={COLORS.textMuted} />
+                <Text style={styles.infoText}>
+                  {room.currentOccupancy}/{room.capacity} occupied
+                </Text>
+              </View>
+              <View style={styles.infoDivider} />
+            </>
+          ) : null}
+          <View style={[styles.infoItem, multiBed && styles.infoItemGrow]}>
+            <Ionicons name="cash-outline" size={14} color={COLORS.textMuted} />
+            <Text style={styles.infoText}>
+              Rs. {room.pricePerMonth.toLocaleString()}/mo
+            </Text>
+          </View>
+        </View>
+
+        {room.description ? (
+          <Text style={styles.description} numberOfLines={2}>
+            {room.description}
+          </Text>
+        ) : null}
+      </Pressable>
 
       <View style={styles.actionRow}>
         <Pressable style={styles.actionView} onPress={onView}>
@@ -98,7 +100,7 @@ export default function RoomCard({ room, onView, onEdit, onDelete }) {
           <Text style={styles.actionDeleteText}>Delete</Text>
         </Pressable>
       </View>
-    </Pressable>
+    </View>
   );
 }
 
@@ -112,6 +114,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 6,
     elevation: 2,
+  },
+  cardMain: {
+    flexShrink: 0,
   },
   coverImage: {
     width: "100%",
