@@ -17,6 +17,23 @@ export async function login(payload) {
   };
 }
 
+export async function checkRegisterAvailability({ email, studentId } = {}) {
+  const params = {};
+  if (email !== undefined && String(email).trim() !== "") {
+    params.email = String(email).trim();
+  }
+  if (studentId !== undefined && String(studentId).trim() !== "") {
+    params.studentId = String(studentId).trim();
+  }
+  const { data } = await apiClient.get("/auth/register/availability", {
+    params,
+  });
+  return {
+    emailTaken: data?.emailTaken,
+    studentIdTaken: data?.studentIdTaken,
+  };
+}
+
 export async function register(payload) {
   return requestSignupOtp(payload);
 }
