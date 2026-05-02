@@ -16,6 +16,14 @@ import {
   sendOperationalAccountActivatedEmail,
 } from "../utils/brevoEmail.js";
 import { parseNic } from "../utils/nicValidation.js";
+import {
+  normalizeSignupEmail,
+  validateSignupEmailFormat,
+  validateSignupName,
+  validateSignupPassword,
+  validateSignupPhoneFull,
+  validateSignupStudentId,
+} from "../utils/signupValidation.js";
 
 const GENDERS = ["male", "female"];
 
@@ -87,10 +95,37 @@ function startOfDay(dateValue) {
   return date;
 }
 
+/** Public: check email / studentId uniqueness during signup (no auth). */
+export const checkRegisterAvailability = async (req, res) => {
+  try {
+    const emailParam = req.query?.email;
+    const studentIdParam = req.query?.studentId;
+    const out = {};
+
+    if (emailParam !== undefined && String(emailParam).trim() !== "") {
+      const fmt = validateSignupEmailFormat(emailParam);
+      if (fmt.ok) {
+        const email = normalizeSignupEmail(emailParam);
+        const dup = await User.findOne(emailQueryFilter(email));
+        out.emailTaken = Boolean(dup);
+      }
+    }
+
+    if (studentIdParam !== undefined && String(studentIdParam).trim() !== "") {
+      const studentId = toTrimmedString(studentIdParam);
+      const dup = await User.findOne({ studentId: String(studentId) });
+      out.studentIdTaken = Boolean(dup);
+    }
+
+    return res.status(200).json(out);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
 export const requestRegisterOtp = async (req, res) => {
   try {
     const name = toTrimmedString(req.body?.name);
-    const email = normalizeEmail(req.body?.email);
     const password = String(req.body?.password ?? "");
     const studentId = toTrimmedString(req.body?.studentId);
     const yearRaw = req.body?.year;
@@ -100,11 +135,42 @@ export const requestRegisterOtp = async (req, res) => {
     const guardianContact = toTrimmedString(req.body?.guardianContact);
     const gender = toTrimmedString(req.body?.gender);
 
-    if (!name || !email || !password) {
+    const emailFmt = validateSignupEmailFormat(req.body?.email);
+    if (!emailFmt.ok) {
+      return res.status(400).json({ message: emailFmt.message });
+    }
+    const email = normalizeSignupEmail(req.body?.email);
+
+    const nameErr = validateSignupName(name, "Full name");
+    if (!nameErr.ok) return res.status(400).json({ message: nameErr.message });
+
+    if (!password) {
       return res
         .status(400)
         .json({ message: "Name, email, and password are required" });
     }
+    const pwdErr = validateSignupPassword(password);
+    if (!pwdErr.ok) return res.status(400).json({ message: pwdErr.message });
+
+    const sidErr = validateSignupStudentId(studentId);
+    if (!sidErr.ok) return res.status(400).json({ message: sidErr.message });
+
+    const contactErr = validateSignupPhoneFull(contactNo);
+    if (!contactErr.ok) return res.status(400).json({ message: contactErr.message });
+
+    const guardianNameErr = validateSignupName(guardianName, "Guardian name");
+    if (!guardianNameErr.ok) {
+      return res.status(400).json({ message: guardianNameErr.message });
+    }
+
+    const guardianContactErr = validateSignupPhoneFull(
+      guardianContact,
+      "Guardian contact",
+    );
+    if (!guardianContactErr.ok) {
+      return res.status(400).json({ message: guardianContactErr.message });
+    }
+
     if (!gender || !GENDERS.includes(gender)) {
       return res
         .status(400)

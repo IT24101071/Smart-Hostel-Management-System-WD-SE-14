@@ -2,6 +2,7 @@ import express from "express";
 import {
   register,
   requestRegisterOtp,
+  checkRegisterAvailability,
   verifyRegisterOtp,
   login,
   forgotPassword,
@@ -46,6 +47,8 @@ function patchMeUpload(req, res, next) {
   }
   next();
 }
+
+router.get("/register/availability", checkRegisterAvailability);
 
 router.post(
   "/register/request-otp",

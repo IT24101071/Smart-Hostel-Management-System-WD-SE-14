@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Pressable,
   StyleSheet,
@@ -15,14 +15,31 @@ import { COLORS } from "../../constants/colors";
 import {
   requestSignupOtp,
   getAuthErrorMessage,
+  checkRegisterAvailability,
 } from "../../services/auth.service";
 import {
   ROOM_GENDERS,
   ROOM_GENDER_LABELS,
 } from "../../types/room";
+import {
+  SIGNUP_PHONE_PREFIX,
+  SIGNUP_LOCAL_PHONE_DIGITS,
+  normalizeSignupEmail,
+  validateSignupNameTyping,
+  validateSignupEmailTyping,
+  validateSignupPasswordTyping,
+  validateSignupPhoneDigitsTyping,
+  validateSignupName,
+  validateSignupEmailFormat,
+  validateSignupPassword,
+  validateSignupPhoneDigits,
+  validateSignupStudentId,
+  digitsToFullPhone,
+} from "../../utils/signupValidation";
 
 const YEARS = ["1", "2", "3", "4"];
 const SEMESTERS = ["1", "2"];
+const ERROR_TEXT = "#DC2626";
 
 function inferMimeTypeFromAsset(asset, fallbackName) {
   const candidateMime = String(asset?.mimeType || "").toLowerCase().trim();
@@ -37,6 +54,12 @@ function inferMimeTypeFromAsset(asset, fallbackName) {
   return "image/jpeg";
 }
 
+function trimDigits(text) {
+  return String(text ?? "")
+    .replace(/\D/g, "")
+    .slice(0, SIGNUP_LOCAL_PHONE_DIGITS);
+}
+
 export default function SignupForm() {
   const router = useRouter();
   const [fullName, setFullName] = useState("");
@@ -44,11 +67,11 @@ export default function SignupForm() {
   const [studentId, setStudentId] = useState("");
   const [year, setYear] = useState("1");
   const [semester, setSemester] = useState("1");
-  const [contactNo, setContactNo] = useState("");
+  const [contactDigits, setContactDigits] = useState("");
   const [password, setPassword] = useState("");
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [guardianName, setGuardianName] = useState("");
-  const [guardianContact, setGuardianContact] = useState("");
+  const [guardianContactDigits, setGuardianContactDigits] = useState("");
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [yearOpen, setYearOpen] = useState(false);
   const [semesterOpen, setSemesterOpen] = useState(false);
@@ -57,6 +80,56 @@ export default function SignupForm() {
   const [profileImage, setProfileImage] = useState(null);
   const [idCardImage, setIdCardImage] = useState(null);
   const [loading, setLoading] = useState(false);
+
+  const [emailTaken, setEmailTaken] = useState(null);
+  const [studentIdTaken, setStudentIdTaken] = useState(null);
+  const [checkingEmail, setCheckingEmail] = useState(false);
+  const [checkingStudentId, setCheckingStudentId] = useState(false);
+
+  const fullNameErr = validateSignupNameTyping(fullName, "Full name");
+  const emailFmtErr = validateSignupEmailTyping(email);
+  const passwordErr = validateSignupPasswordTyping(password);
+  const contactErr = validateSignupPhoneDigitsTyping(contactDigits);
+  const guardianNameErr = validateSignupNameTyping(guardianName, "Guardian name");
+  const guardianContactErr =
+    validateSignupPhoneDigitsTyping(guardianContactDigits);
+
+  const strictRegexOk = useMemo(() => {
+    return (
+      validateSignupName(fullName, "Full name").ok &&
+      validateSignupEmailFormat(email).ok &&
+      validateSignupStudentId(studentId).ok &&
+      validateSignupPassword(password).ok &&
+      validateSignupPhoneDigits(contactDigits).ok &&
+      validateSignupPhoneDigits(guardianContactDigits, "Guardian contact")
+        .ok &&
+      validateSignupName(guardianName, "Guardian name").ok &&
+      ROOM_GENDERS.includes(gender)
+    );
+  }, [
+    fullName,
+    email,
+    studentId,
+    password,
+    contactDigits,
+    guardianContactDigits,
+    guardianName,
+    gender,
+  ]);
+
+  const availabilityBlocksSubmit =
+    checkingEmail ||
+    checkingStudentId ||
+    emailTaken === true ||
+    studentIdTaken === true;
+
+  const canSubmit =
+    strictRegexOk &&
+    !!profileImage &&
+    !!idCardImage &&
+    agreedToTerms &&
+    !availabilityBlocksSubmit &&
+    !loading;
 
   const pickProfileImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -93,61 +166,68 @@ export default function SignupForm() {
     }
   };
 
+  const runEmailAvailability = async () => {
+    const fmt = validateSignupEmailFormat(email);
+    if (!fmt.ok) return;
+    setCheckingEmail(true);
+    try {
+      const r = await checkRegisterAvailability({
+        email: normalizeSignupEmail(email),
+      });
+      setEmailTaken(r.emailTaken === true ? true : false);
+    } catch {
+      setEmailTaken(null);
+    } finally {
+      setCheckingEmail(false);
+    }
+  };
+
+  const runStudentIdAvailability = async () => {
+    const sid = studentId.trim();
+    if (!sid) return;
+    setCheckingStudentId(true);
+    try {
+      const r = await checkRegisterAvailability({ studentId: sid });
+      setStudentIdTaken(r.studentIdTaken === true ? true : false);
+    } catch {
+      setStudentIdTaken(null);
+    } finally {
+      setCheckingStudentId(false);
+    }
+  };
+
   const handleSubmit = async () => {
-    if (!fullName.trim()) {
-      Alert.alert("Validation", "Please enter your full name");
-      return;
-    }
-    if (!email.trim()) {
-      Alert.alert("Validation", "Please enter your email");
-      return;
-    }
-    if (!studentId.trim()) {
-      Alert.alert("Validation", "Please enter your student ID");
-      return;
-    }
-    if (!ROOM_GENDERS.includes(gender)) {
-      Alert.alert("Validation", "Please select your gender");
-      return;
-    }
-    if (!contactNo.trim()) {
-      Alert.alert("Validation", "Please enter your contact number");
-      return;
-    }
-    if (!password.trim()) {
-      Alert.alert("Validation", "Please enter a password");
-      return;
-    }
-    if (!guardianName.trim()) {
-      Alert.alert("Validation", "Please enter guardian name");
-      return;
-    }
-    if (!guardianContact.trim()) {
-      Alert.alert("Validation", "Please enter guardian contact");
-      return;
-    }
-    if (!profileImage) {
-      Alert.alert("Validation", "Please upload a profile picture");
-      return;
-    }
-    if (!idCardImage) {
-      Alert.alert("Validation", "Please upload your ID card image");
-      return;
-    }
-    if (!agreedToTerms) {
-      Alert.alert("Validation", "Please agree to the terms and conditions");
-      return;
-    }
+    if (!canSubmit && !loading) return;
 
     setLoading(true);
     try {
+      const avail = await checkRegisterAvailability({
+        email: normalizeSignupEmail(email),
+        studentId: studentId.trim(),
+      });
+      if (avail.emailTaken) {
+        setEmailTaken(true);
+        setLoading(false);
+        return;
+      }
+      setEmailTaken(false);
+      if (avail.studentIdTaken) {
+        setStudentIdTaken(true);
+        setLoading(false);
+        return;
+      }
+      setStudentIdTaken(false);
+
+      const contactNo = digitsToFullPhone(contactDigits);
+      const guardianContact = digitsToFullPhone(guardianContactDigits);
+
       const response = await requestSignupOtp({
         name: fullName,
         email,
         password,
         studentId,
-        year: parseInt(year),
-        semester: parseInt(semester),
+        year: parseInt(year, 10),
+        semester: parseInt(semester, 10),
         gender,
         contactNo,
         guardianName,
@@ -164,10 +244,13 @@ export default function SignupForm() {
         },
       });
 
-      Alert.alert("OTP Sent", response.message || "Check your email for the OTP.");
+      Alert.alert(
+        "OTP Sent",
+        response.message || "Check your email for the OTP.",
+      );
       router.push({
         pathname: "/signup-verify-otp",
-        params: { email: email.trim().toLowerCase() },
+        params: { email: normalizeSignupEmail(email) },
       });
     } catch (error) {
       const message = getAuthErrorMessage(error);
@@ -176,6 +259,16 @@ export default function SignupForm() {
       setLoading(false);
     }
   };
+
+  const emailErrorLine = emailTaken
+    ? "This email is already registered"
+    : !emailFmtErr.ok
+      ? emailFmtErr.message
+      : null;
+
+  const studentIdErrorLine = studentIdTaken
+    ? "This student ID is already registered"
+    : null;
 
   return (
     <View style={styles.container}>
@@ -205,34 +298,56 @@ export default function SignupForm() {
         </Pressable>
       </View>
 
-      <FieldGroup label="Full Name">
+      <FieldGroup
+        label="Full Name"
+        errorText={!fullNameErr.ok ? fullNameErr.message : null}
+      >
         <InputRow
           icon="person-outline"
           placeholder="John Doe"
           value={fullName}
           onChangeText={setFullName}
+          hasError={!fullNameErr.ok}
         />
       </FieldGroup>
 
-      <FieldGroup label="University Email">
+      <FieldGroup
+        label="University Email"
+        errorText={emailErrorLine}
+        helperText={checkingEmail ? "Checking availability…" : null}
+      >
         <InputRow
           icon="mail-outline"
           placeholder="student@university.edu"
           value={email}
-          onChangeText={setEmail}
+          onChangeText={(t) => {
+            setEmail(t);
+            setEmailTaken(null);
+          }}
+          onBlur={runEmailAvailability}
           keyboardType="email-address"
           autoCapitalize="none"
+          hasError={Boolean(emailErrorLine)}
         />
       </FieldGroup>
 
-      <FieldGroup label="Student ID">
+      <FieldGroup
+        label="Student ID"
+        errorText={studentIdErrorLine}
+        helperText={checkingStudentId ? "Checking availability…" : null}
+      >
         <View style={styles.splitRow}>
           <View style={styles.splitInput}>
             <InputRow
               icon="card-outline"
               placeholder="e.g., STU123456"
               value={studentId}
-              onChangeText={setStudentId}
+              onChangeText={(t) => {
+                setStudentId(t);
+                setStudentIdTaken(null);
+              }}
+              onBlur={runStudentIdAvailability}
+              hasError={Boolean(studentIdErrorLine)}
             />
           </View>
           <Pressable style={styles.uploadIdButton} onPress={pickIdCardImage}>
@@ -383,18 +498,27 @@ export default function SignupForm() {
         )}
       </View>
 
-      <FieldGroup label="Contact No">
-        <InputRow
-          icon="call-outline"
-          placeholder="077xxxxxxx"
-          value={contactNo}
-          onChangeText={setContactNo}
-          keyboardType="phone-pad"
+      <FieldGroup
+        label="Contact No"
+        errorText={!contactErr.ok ? contactErr.message : null}
+      >
+        <PhoneDigitsRow
+          value={contactDigits}
+          onChangeText={(t) => setContactDigits(trimDigits(t))}
+          hasError={!contactErr.ok}
         />
       </FieldGroup>
 
-      <FieldGroup label="Password">
-        <View style={styles.inputRow}>
+      <FieldGroup
+        label="Password"
+        errorText={!passwordErr.ok ? passwordErr.message : null}
+      >
+        <View
+          style={[
+            styles.inputRow,
+            !passwordErr.ok && styles.inputRowError,
+          ]}
+        >
           <Ionicons
             name="lock-closed-outline"
             size={18}
@@ -403,7 +527,7 @@ export default function SignupForm() {
           />
           <TextInput
             style={[styles.input, styles.passwordInput]}
-            placeholder="Min 6 characters"
+            placeholder="Letter, number, special char; min 7 characters"
             placeholderTextColor="#9CA3AF"
             secureTextEntry={!passwordVisible}
             value={password}
@@ -429,22 +553,27 @@ export default function SignupForm() {
         <View style={styles.dividerLine} />
       </View>
 
-      <FieldGroup label="Guardian Name">
+      <FieldGroup
+        label="Guardian Name"
+        errorText={!guardianNameErr.ok ? guardianNameErr.message : null}
+      >
         <InputRow
           icon="people-outline"
           placeholder="e.g., Mother/Father"
           value={guardianName}
           onChangeText={setGuardianName}
+          hasError={!guardianNameErr.ok}
         />
       </FieldGroup>
 
-      <FieldGroup label="Guardian Contact">
-        <InputRow
-          icon="call-outline"
-          placeholder="077xxxxxxx"
-          value={guardianContact}
-          onChangeText={setGuardianContact}
-          keyboardType="phone-pad"
+      <FieldGroup
+        label="Guardian Contact"
+        errorText={!guardianContactErr.ok ? guardianContactErr.message : null}
+      >
+        <PhoneDigitsRow
+          value={guardianContactDigits}
+          onChangeText={(t) => setGuardianContactDigits(trimDigits(t))}
+          hasError={!guardianContactErr.ok}
         />
       </FieldGroup>
 
@@ -467,10 +596,10 @@ export default function SignupForm() {
         style={({ pressed }) => [
           styles.submitButton,
           pressed && styles.submitButtonPressed,
-          loading && styles.submitButtonDisabled,
+          (!canSubmit || loading) && styles.submitButtonDisabled,
         ]}
         onPress={handleSubmit}
-        disabled={loading}
+        disabled={!canSubmit || loading}
       >
         {loading ? (
           <ActivityIndicator color="#FFFFFF" />
@@ -482,11 +611,35 @@ export default function SignupForm() {
   );
 }
 
-function FieldGroup({ label, children }) {
+function FieldGroup({ label, children, errorText, helperText }) {
   return (
     <View style={styles.fieldGroup}>
       <Text style={styles.fieldLabel}>{label}</Text>
       {children}
+      {helperText ? (
+        <Text style={styles.fieldHelper}>{helperText}</Text>
+      ) : null}
+      {errorText ? (
+        <Text style={styles.fieldError}>{errorText}</Text>
+      ) : null}
+    </View>
+  );
+}
+
+function PhoneDigitsRow({ value, onChangeText, hasError }) {
+  return (
+    <View style={[styles.inputRow, hasError && styles.inputRowError]}>
+      <Text style={styles.phonePrefix}>{SIGNUP_PHONE_PREFIX}</Text>
+      <TextInput
+        style={[styles.input, styles.phoneDigitsInput]}
+        placeholder={"9".repeat(SIGNUP_LOCAL_PHONE_DIGITS)}
+        placeholderTextColor="#9CA3AF"
+        value={value}
+        onChangeText={onChangeText}
+        keyboardType="phone-pad"
+        maxLength={SIGNUP_LOCAL_PHONE_DIGITS}
+        autoCorrect={false}
+      />
     </View>
   );
 }
@@ -498,9 +651,11 @@ function InputRow({
   onChangeText,
   keyboardType,
   autoCapitalize,
+  onBlur,
+  hasError,
 }) {
   return (
-    <View style={styles.inputRow}>
+    <View style={[styles.inputRow, hasError && styles.inputRowError]}>
       <Ionicons
         name={icon}
         size={18}
@@ -513,6 +668,7 @@ function InputRow({
         placeholderTextColor="#9CA3AF"
         value={value}
         onChangeText={onChangeText}
+        onBlur={onBlur}
         keyboardType={keyboardType ?? "default"}
         autoCapitalize={autoCapitalize ?? "words"}
         autoCorrect={false}
@@ -564,6 +720,18 @@ const styles = StyleSheet.create({
     color: "#374151",
     marginBottom: 6,
   },
+  fieldError: {
+    fontFamily: "PublicSans_400Regular",
+    fontSize: 12,
+    color: ERROR_TEXT,
+    marginTop: 4,
+  },
+  fieldHelper: {
+    fontFamily: "PublicSans_400Regular",
+    fontSize: 12,
+    color: "#6B7280",
+    marginTop: 4,
+  },
   inputRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -573,6 +741,10 @@ const styles = StyleSheet.create({
     borderColor: "#E5E7EB",
     paddingHorizontal: 12,
     height: 46,
+  },
+  inputRowError: {
+    borderColor: "#FCA5A5",
+    backgroundColor: "#FEF2F2",
   },
   inputIcon: {
     marginRight: 10,
@@ -587,13 +759,23 @@ const styles = StyleSheet.create({
   passwordInput: {
     letterSpacing: 1,
   },
+  phonePrefix: {
+    fontFamily: "PublicSans_600SemiBold",
+    fontSize: 14,
+    color: "#374151",
+    marginRight: 8,
+    minWidth: 36,
+  },
+  phoneDigitsInput: {
+    flex: 1,
+  },
   eyeButton: {
     padding: 4,
   },
   splitRow: {
     flexDirection: "row",
     gap: 8,
-    alignItems: "center",
+    alignItems: "flex-start",
   },
   splitInput: {
     flex: 1,
@@ -782,7 +964,7 @@ const styles = StyleSheet.create({
     opacity: 0.95,
   },
   submitButtonDisabled: {
-    opacity: 0.6,
+    opacity: 0.45,
   },
   submitButtonText: {
     fontFamily: "PublicSans_600SemiBold",
