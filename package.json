@@ -1,0 +1,10 @@
+{
+  "name": "smart-hostel-management-system",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:unit": "node --test \"test/unit testing/*.test.mjs\"",
+    "test:system": "node --test \"test/system testing/*.test.mjs\"",
+    "test": "node --test \"test/unit testing/*.test.mjs\" \"test/system testing/*.test.mjs\""
+  }
+}
