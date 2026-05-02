@@ -3,16 +3,17 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../../constants/colors';
 import { getMyLatestBooking } from '../../../services/booking.service';
-import { createTicket, getMyTickets, getTicketErrorMessage } from '../../../services/ticket.service';
+import { createTicket, getMyTickets, getTicketErrorMessage, updateMyTicket } from '../../../services/ticket.service';
 import {
   CATEGORY_ICONS,
   TICKET_CATEGORIES,
   TICKET_STATUS_COLORS,
   TICKET_URGENCY_LEVELS,
+  canStudentEditTicket,
 } from '../../../types/ticket';
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -36,8 +37,20 @@ export default function StudentSupportScreen() {
   const [submitMessage, setSubmitMessage] = useState(null);
   const [showFieldValidation, setShowFieldValidation] = useState(false);
   const [historySectionY, setHistorySectionY] = useState(0);
+  const [editingTicket, setEditingTicket] = useState(null);
+  const [editCategory, setEditCategory] = useState(TICKET_CATEGORIES[0]);
+  const [editUrgency, setEditUrgency] = useState("Medium");
+  const [editSubject, setEditSubject] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editNewImages, setEditNewImages] = useState([]);
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [editShowValidation, setEditShowValidation] = useState(false);
   const subjectLength = subject.trim().length;
   const descriptionLength = description.trim().length;
+  const editSubjectLength = editSubject.trim().length;
+  const editDescriptionLength = editDescription.trim().length;
+  const canSaveEdit =
+    editSubjectLength >= 5 && editDescriptionLength >= 10 && !editSubmitting;
   const canSubmit =
     subjectLength >= 5 && descriptionLength >= 10 && !submitting;
 
@@ -70,6 +83,16 @@ export default function StudentSupportScreen() {
       setShowFieldValidation(false);
     }
   }, [showFieldValidation, subjectLength, descriptionLength]);
+
+  useEffect(() => {
+    if (
+      editShowValidation &&
+      editSubjectLength >= 5 &&
+      editDescriptionLength >= 10
+    ) {
+      setEditShowValidation(false);
+    }
+  }, [editShowValidation, editSubjectLength, editDescriptionLength]);
 
   useEffect(() => {
     hasAutoScrolledToHistoryRef.current = false;
@@ -128,6 +151,94 @@ export default function StudentSupportScreen() {
       return;
     }
     setImages(nextImages);
+  };
+
+  const openEditTicket = (ticket) => {
+    setEditingTicket(ticket);
+    setEditCategory(ticket.category || TICKET_CATEGORIES[0]);
+    setEditUrgency(ticket.urgency || "Medium");
+    setEditSubject(ticket.subject || "");
+    setEditDescription(ticket.description || "");
+    setEditNewImages([]);
+    setEditShowValidation(false);
+  };
+
+  const closeEditTicket = () => {
+    setEditingTicket(null);
+    setEditSubmitting(false);
+    setEditShowValidation(false);
+  };
+
+  const pickEditImages = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert("Permission needed", "Allow photo library access to attach an image.");
+      return;
+    }
+    if (editNewImages.length >= MAX_TICKET_IMAGES) {
+      Alert.alert("Limit reached", "Maximum 5 images are allowed.");
+      return;
+    }
+    const selectionLimit = MAX_TICKET_IMAGES - editNewImages.length;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: false,
+      allowsMultipleSelection: true,
+      selectionLimit,
+      quality: 0.85,
+    });
+    if (result.canceled || !result.assets?.length) return;
+
+    const nextImages = [...editNewImages];
+    for (const asset of result.assets) {
+      if (nextImages.length >= MAX_TICKET_IMAGES) break;
+      const size = asset.fileSize ?? asset.size;
+      if (typeof size === "number" && size > MAX_IMAGE_BYTES) {
+        continue;
+      }
+      nextImages.push({
+        uri: asset.uri,
+        name: asset.fileName || asset.name || `ticket-image-${nextImages.length + 1}.jpg`,
+        mimeType: asset.mimeType || "image/jpeg",
+        size,
+      });
+    }
+
+    if (nextImages.length === editNewImages.length) {
+      Alert.alert("Image too large", "Each image must be smaller than 5MB.");
+      return;
+    }
+    setEditNewImages(nextImages);
+  };
+
+  const removeEditNewImageAt = (indexToRemove) => {
+    setEditNewImages((prev) => prev.filter((_, index) => index !== indexToRemove));
+  };
+
+  const submitEditTicket = async () => {
+    if (editSubjectLength < 5 || editDescriptionLength < 10) {
+      setEditShowValidation(true);
+      return;
+    }
+    if (!editingTicket?.id || editSubmitting) return;
+    try {
+      setEditSubmitting(true);
+      setEditShowValidation(false);
+      await updateMyTicket(editingTicket.id, {
+        category: editCategory,
+        subject: editSubject,
+        description: editDescription,
+        urgency: editUrgency,
+        images: editNewImages,
+      });
+      const tickets = await getMyTickets();
+      setMyTickets(tickets);
+      closeEditTicket();
+    } catch (error) {
+      Alert.alert("Unable to update", getTicketErrorMessage(error));
+    } finally {
+      setEditSubmitting(false);
+    }
   };
 
   const submitTicket = async () => {
@@ -405,6 +516,20 @@ export default function StudentSupportScreen() {
                   <Text style={styles.ticketMeta} numberOfLines={1}>
                     {ticket.category} · {ticket.urgency}
                   </Text>
+                  {canStudentEditTicket(ticket) ? (
+                    <Pressable
+                      style={styles.editTicketBtn}
+                      onPress={() => openEditTicket(ticket)}
+                      accessibilityLabel="Edit ticket"
+                    >
+                      <Ionicons name="create-outline" size={18} color={COLORS.primary} />
+                      <Text style={styles.editTicketBtnText}>Edit</Text>
+                    </Pressable>
+                  ) : (
+                    <Text style={styles.editLockedHint}>
+                      Editing locked (assigned or resolved).
+                    </Text>
+                  )}
                 </View>
               );
             })
@@ -415,6 +540,180 @@ export default function StudentSupportScreen() {
           )}
         </View>
       </ScrollView>
+
+      <Modal
+        visible={Boolean(editingTicket)}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={closeEditTicket}
+      >
+        <SafeAreaView style={styles.editModalSafe} edges={["top", "bottom"]}>
+          <View style={styles.editModalHeader}>
+            <Pressable onPress={closeEditTicket} hitSlop={12} style={styles.editModalHeaderBtn}>
+              <Text style={styles.editModalCancel}>Cancel</Text>
+            </Pressable>
+            <Text style={styles.editModalTitle} numberOfLines={1}>
+              Edit ticket
+            </Text>
+            <Pressable
+              onPress={submitEditTicket}
+              disabled={!canSaveEdit}
+              hitSlop={12}
+              style={styles.editModalHeaderBtn}
+            >
+              {editSubmitting ? (
+                <ActivityIndicator size="small" color={COLORS.primary} />
+              ) : (
+                <Text
+                  style={[
+                    styles.editModalSave,
+                    !canSaveEdit && styles.editModalSaveDisabled,
+                  ]}
+                >
+                  Save
+                </Text>
+              )}
+            </Pressable>
+          </View>
+
+          <ScrollView
+            style={styles.editModalScroll}
+            contentContainerStyle={styles.editModalContent}
+            keyboardShouldPersistTaps="handled"
+          >
+            <Text style={styles.sectionTitle}>Category</Text>
+            <View style={styles.categoryGrid}>
+              {TICKET_CATEGORIES.map((item) => {
+                const active = item === editCategory;
+                return (
+                  <Pressable
+                    key={item}
+                    style={[styles.categoryCard, active && styles.categoryCardActive]}
+                    onPress={() => setEditCategory(item)}
+                  >
+                    <Ionicons
+                      name={CATEGORY_ICONS[item]}
+                      size={26}
+                      color={active ? COLORS.primary : COLORS.textPrimary}
+                    />
+                    <Text style={[styles.categoryText, active && styles.categoryTextActive]}>
+                      {item}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <Text style={styles.sectionTitle}>Photos</Text>
+            <Text style={styles.editPhotoHint}>
+              Adding new photos replaces all current attachments when you save.
+            </Text>
+            {Array.isArray(editingTicket?.images) && editingTicket.images.length > 0 ? (
+              <>
+                <Text style={styles.editPhotoSectionLabel}>Current</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.uploadThumbRow}
+                  style={[styles.uploadThumbScroll, styles.editExistingScroll]}
+                >
+                  {editingTicket.images.map((img, idx) => (
+                    <View key={`existing-${img.url ?? idx}`} style={styles.uploadThumbWrap}>
+                      {img.url ? (
+                        <Image source={{ uri: img.url }} style={styles.uploadThumb} />
+                      ) : null}
+                    </View>
+                  ))}
+                </ScrollView>
+              </>
+            ) : null}
+            <Text style={styles.editPhotoSectionLabel}>New photos (optional)</Text>
+            {editNewImages.length === 0 ? (
+              <Pressable style={styles.uploadBox} onPress={pickEditImages}>
+                <Ionicons name="camera-outline" size={24} color={COLORS.textMuted} />
+                <Text style={styles.uploadText}>
+                  Tap to add up to 5 replacement photos
+                </Text>
+              </Pressable>
+            ) : (
+              <View style={styles.uploadBox}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.uploadThumbRow}
+                  style={styles.uploadThumbScroll}
+                >
+                  {editNewImages.map((item, index) => (
+                    <View key={`${item.name}-${index}`} style={styles.uploadThumbWrap}>
+                      <Image source={{ uri: item.uri }} style={styles.uploadThumb} />
+                      <Pressable
+                        style={styles.uploadThumbRemove}
+                        onPress={() => removeEditNewImageAt(index)}
+                        hitSlop={6}
+                      >
+                        <Text style={styles.uploadThumbRemoveText}>✕</Text>
+                      </Pressable>
+                    </View>
+                  ))}
+                  {editNewImages.length < MAX_TICKET_IMAGES && (
+                    <Pressable style={styles.uploadThumbAdd} onPress={pickEditImages}>
+                      <Ionicons name="add" size={26} color={COLORS.textMuted} />
+                    </Pressable>
+                  )}
+                </ScrollView>
+              </View>
+            )}
+
+            <Text style={styles.sectionTitle}>Subject</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Briefly describe the problem..."
+              value={editSubject}
+              onChangeText={setEditSubject}
+              maxLength={120}
+            />
+            {editShowValidation && editSubjectLength < 5 ? (
+              <Text style={[styles.fieldValidationText, styles.fieldValidationError]}>
+                Minimum 5 characters ({editSubjectLength}/5)
+              </Text>
+            ) : null}
+
+            <Text style={styles.sectionTitle}>Description</Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              placeholder="Tell us more details"
+              value={editDescription}
+              onChangeText={setEditDescription}
+              multiline
+              textAlignVertical="top"
+              maxLength={1500}
+            />
+            {editShowValidation && editDescriptionLength < 10 ? (
+              <Text style={[styles.fieldValidationText, styles.fieldValidationError]}>
+                Minimum 10 characters ({editDescriptionLength}/10)
+              </Text>
+            ) : null}
+
+            <Text style={styles.sectionTitle}>Urgency level</Text>
+            <View style={styles.urgencyRow}>
+              {TICKET_URGENCY_LEVELS.map((item) => {
+                const active = item === editUrgency;
+                return (
+                  <Pressable
+                    key={item}
+                    style={[styles.urgencyBtn, active && styles.urgencyBtnActive]}
+                    onPress={() => setEditUrgency(item)}
+                  >
+                    <Text style={[styles.urgencyText, active && styles.urgencyTextActive]}>
+                      {item}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -736,6 +1035,90 @@ const styles = StyleSheet.create({
     fontFamily: "PublicSans_400Regular",
     fontSize: 12,
     color: COLORS.textMuted,
+  },
+  editTicketBtn: {
+    marginTop: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+  },
+  editTicketBtnText: {
+    fontFamily: "PublicSans_600SemiBold",
+    fontSize: 13,
+    color: COLORS.primary,
+  },
+  editLockedHint: {
+    marginTop: 8,
+    fontFamily: "PublicSans_400Regular",
+    fontSize: 11,
+    color: COLORS.textMuted,
+    fontStyle: "italic",
+  },
+  editModalSafe: {
+    flex: 1,
+    backgroundColor: COLORS.studentScreenBackground,
+  },
+  editModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.border,
+    backgroundColor: COLORS.white,
+  },
+  editModalHeaderBtn: {
+    minWidth: 72,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 4,
+  },
+  editModalCancel: {
+    fontFamily: "PublicSans_600SemiBold",
+    fontSize: 16,
+    color: COLORS.textMuted,
+  },
+  editModalTitle: {
+    flex: 1,
+    textAlign: "center",
+    fontFamily: "PublicSans_700Bold",
+    fontSize: 17,
+    color: COLORS.textPrimary,
+  },
+  editModalSave: {
+    fontFamily: "PublicSans_700Bold",
+    fontSize: 16,
+    color: COLORS.primary,
+  },
+  editModalSaveDisabled: {
+    color: COLORS.textMuted,
+  },
+  editModalScroll: {
+    flex: 1,
+  },
+  editModalContent: {
+    paddingHorizontal: 14,
+    paddingBottom: 28,
+    paddingTop: 8,
+  },
+  editPhotoHint: {
+    fontFamily: "PublicSans_400Regular",
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginBottom: 8,
+    lineHeight: 18,
+  },
+  editPhotoSectionLabel: {
+    fontFamily: "PublicSans_600SemiBold",
+    fontSize: 13,
+    color: COLORS.textMuted,
+    marginBottom: 6,
+    marginTop: 4,
+  },
+  editExistingScroll: {
+    marginBottom: 8,
   },
   ticketEmpty: {
     backgroundColor: COLORS.white,

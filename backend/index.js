@@ -11,6 +11,7 @@ import paymentRoutes from "./routes/payment.routes.js"; // Payment management
 import uploadRoutes from "./routes/upload.routes.js";
 import ticketRoutes from "./routes/ticket.routes.js";
 import visitorRoutes from "./routes/visitor.routes.js";
+import { runVisitorCheckoutReminderJob } from "./jobs/visitorCheckoutReminder.js";
 
 dotenv.config();
 connectDB();
@@ -38,3 +39,10 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, "0.0.0.0", () =>
   console.log(`Server on port ${PORT} (0.0.0.0)`),
 );
+
+const VISITOR_REMINDER_INTERVAL_MS = 5 * 60 * 1000;
+setInterval(() => {
+  runVisitorCheckoutReminderJob().catch((err) =>
+    console.error("[visitor-checkout-reminder]", err),
+  );
+}, VISITOR_REMINDER_INTERVAL_MS);

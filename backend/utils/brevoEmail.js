@@ -415,6 +415,149 @@ export async function sendTicketAssignedEmailToStaff({
   });
 }
 
+export async function sendTicketUnassignedEmailToStaff({
+  toEmail,
+  staffName,
+  ticket,
+  removedByName,
+}) {
+  const { client, senderEmail, senderName } = getBrevoClient();
+  const subject = `${APP_NAME} — ticket no longer assigned to you`;
+  const textContent = [
+    `Hi ${staffName || "Staff"},`,
+    "",
+    `${removedByName || "A manager"} removed you from this ticket. It is no longer assigned to you.`,
+    `Ticket Number: ${ticket?.ticketNumber || "--"}`,
+    `Category: ${ticket?.category || "--"}`,
+    `Urgency: ${ticket?.urgency || "--"}`,
+    `Status: ${ticket?.status || "--"}`,
+    `Subject: ${ticket?.subject || "--"}`,
+    "",
+    `You do not need to take further action on this ticket unless you are assigned again.`,
+    "",
+    `— ${APP_NAME}`,
+  ].join("\n");
+  const htmlContent = `
+<!DOCTYPE html>
+<html><body style="font-family: system-ui, sans-serif; line-height: 1.5; color: #111827;">
+  <p>Hi ${staffName || "Staff"},</p>
+  <p><strong>${removedByName || "A manager"}</strong> removed you from this ticket. <strong>This task is no longer assigned to you.</strong></p>
+  <p><strong>${fmtTicketHeadline(ticket)}</strong></p>
+  <ul>
+    <li>Ticket Number: ${ticket?.ticketNumber || "--"}</li>
+    <li>Category: ${ticket?.category || "--"}</li>
+    <li>Urgency: ${ticket?.urgency || "--"}</li>
+    <li>Status: ${ticket?.status || "--"}</li>
+    <li>Subject: ${ticket?.subject || "--"}</li>
+  </ul>
+  <p style="color: #6B7280; font-size: 14px;">You do not need to take further action on this ticket unless you are assigned again.</p>
+  <p style="color: #9CA3AF; font-size: 12px;">— ${APP_NAME}</p>
+</body></html>`;
+  await client.transactionalEmails.sendTransacEmail({
+    sender: { email: senderEmail, name: senderName },
+    to: [{ email: toEmail }],
+    subject,
+    textContent,
+    htmlContent,
+  });
+}
+
+export async function sendVisitorCheckInEmailToStudent({
+  toEmail,
+  studentName,
+  visitorName,
+  roomNumber,
+  purposeOfVisit,
+  expectedTimeOut,
+  checkedInAt,
+}) {
+  const { client, senderEmail, senderName } = getBrevoClient();
+  const subject = `${APP_NAME} — visitor checked in at your room`;
+  const roomLine = roomNumber ? `Room: ${roomNumber}` : "Room: —";
+  const outStr = fmtDate(expectedTimeOut);
+  const inStr = fmtDate(checkedInAt);
+  const textContent = [
+    `Hi ${studentName || "Student"},`,
+    "",
+    `A visitor has been checked in for a visit linked to you.`,
+    `Visitor: ${visitorName || "—"}`,
+    roomLine,
+    `Purpose: ${purposeOfVisit || "—"}`,
+    `Checked in at: ${inStr}`,
+    `Expected checkout (visitor must leave by): ${outStr}`,
+    "",
+    `If this visit was not expected, contact security or the warden office.`,
+    "",
+    `— ${APP_NAME}`,
+  ].join("\n");
+  const htmlContent = `
+<!DOCTYPE html>
+<html><body style="font-family: system-ui, sans-serif; line-height: 1.5; color: #111827;">
+  <p>Hi ${studentName || "Student"},</p>
+  <p>A visitor has been <strong>checked in</strong> for a visit linked to you.</p>
+  <ul>
+    <li><strong>Visitor:</strong> ${visitorName || "—"}</li>
+    <li><strong>Room:</strong> ${roomNumber || "—"}</li>
+    <li><strong>Purpose:</strong> ${purposeOfVisit || "—"}</li>
+    <li><strong>Checked in at:</strong> ${inStr}</li>
+    <li><strong>Expected checkout:</strong> ${outStr}</li>
+  </ul>
+  <p style="color: #6B7280; font-size: 14px;">If this visit was not expected, contact security or the warden office.</p>
+  <p style="color: #9CA3AF; font-size: 12px;">— ${APP_NAME}</p>
+</body></html>`;
+  await client.transactionalEmails.sendTransacEmail({
+    sender: { email: senderEmail, name: senderName },
+    to: [{ email: toEmail }],
+    subject,
+    textContent,
+    htmlContent,
+  });
+}
+
+export async function sendVisitorCheckoutReminderEmailToStudent({
+  toEmail,
+  studentName,
+  visitorName,
+  roomNumber,
+  expectedTimeOut,
+}) {
+  const { client, senderEmail, senderName } = getBrevoClient();
+  const subject = `${APP_NAME} — visitor checkout time soon`;
+  const outStr = fmtDate(expectedTimeOut);
+  const textContent = [
+    `Hi ${studentName || "Student"},`,
+    "",
+    `This is a reminder: your visitor's expected checkout time is approaching.`,
+    `Visitor: ${visitorName || "—"}`,
+    `Room: ${roomNumber || "—"}`,
+    `Expected checkout: ${outStr}`,
+    "",
+    `Please ensure your visitor checks out on time.`,
+    "",
+    `— ${APP_NAME}`,
+  ].join("\n");
+  const htmlContent = `
+<!DOCTYPE html>
+<html><body style="font-family: system-ui, sans-serif; line-height: 1.5; color: #111827;">
+  <p>Hi ${studentName || "Student"},</p>
+  <p><strong>Reminder:</strong> your visitor&apos;s expected checkout time is <strong>soon</strong>.</p>
+  <ul>
+    <li><strong>Visitor:</strong> ${visitorName || "—"}</li>
+    <li><strong>Room:</strong> ${roomNumber || "—"}</li>
+    <li><strong>Expected checkout:</strong> ${outStr}</li>
+  </ul>
+  <p style="color: #6B7280; font-size: 14px;">Please ensure your visitor checks out on time.</p>
+  <p style="color: #9CA3AF; font-size: 12px;">— ${APP_NAME}</p>
+</body></html>`;
+  await client.transactionalEmails.sendTransacEmail({
+    sender: { email: senderEmail, name: senderName },
+    to: [{ email: toEmail }],
+    subject,
+    textContent,
+    htmlContent,
+  });
+}
+
 export async function sendTicketResolvedEmailToStudent({
   toEmail,
   studentName,

@@ -107,6 +107,7 @@ export const getStaffList = async (req, res) => {
         const [total, users] = await Promise.all([
             User.countDocuments(filter),
             User.find(filter)
+                .populate("invitedBy", "name email")
                 .sort({ createdAt: -1 })
                 .skip(skip)
                 .limit(limit)
