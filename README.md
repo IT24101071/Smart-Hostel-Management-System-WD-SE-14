@@ -40,7 +40,6 @@ The API listens on **`0.0.0.0`**, so it accepts connections from other machines 
 |------|-------------|
 | `backend/` | REST API: Express routes under `/api/*`, static files under `/uploads`. |
 | `frontend/` | Expo Router app; entry `expo-router/entry`. |
-| `docs/` | Optional project documentation (add API reference here if you maintain it). |
 
 ---
 
@@ -72,20 +71,20 @@ The API listens on **`0.0.0.0`**, so it accepts connections from other machines 
 
 ### Backend environment variables
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `PORT` | Optional | Defaults to **5000** if unset. |
-| `MONGO_URI` | **Yes** | MongoDB connection string. |
-| `JWT_SECRET` | **Yes** | Secret for signing JWTs. Generate a strong value, e.g. `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` (also noted in `.env.example`). |
-| `R2_ENDPOINT` | Optional | Cloudflare R2 (or S3-compatible) — file storage. |
-| `R2_ACCESS_KEY_ID` | Optional | R2 access key. |
-| `R2_SECRET_ACCESS_KEY` | Optional | R2 secret key. |
-| `R2_BUCKET_NAME` | Optional | Bucket name. |
-| `R2_PUBLIC_URL` | Optional | Public base URL for uploaded assets. |
-| `ADMIN_SECRET_KEY` | Optional | Used for admin-only operations where implemented. |
-| `BREVO_API_KEY` | Optional | Brevo (email) API key. |
-| `BREVO_SENDER_EMAIL` | Optional | Sender email for transactional mail. |
-| `BREVO_SENDER_NAME` | Optional | Sender display name. |
+| Variable | Description |
+|----------|-------------|
+| `PORT` | Defaults to **5000** if unset. |
+| `MONGO_URI` | MongoDB connection string. |
+| `JWT_SECRET` | Secret for signing JWTs. Generate a strong value, e.g. `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` (also noted in `.env.example`). |
+| `R2_ENDPOINT` | Cloudflare R2 (or S3-compatible) — file storage. |
+| `R2_ACCESS_KEY_ID` | R2 access key. |
+| `R2_SECRET_ACCESS_KEY` | R2 secret key. |
+| `R2_BUCKET_NAME` | Bucket name. |
+| `R2_PUBLIC_URL` | Public base URL for uploaded assets. |
+| `ADMIN_SECRET_KEY` | Used for admin-only operations where implemented. |
+| `BREVO_API_KEY` | Brevo (email) API key. |
+| `BREVO_SENDER_EMAIL` | Sender email for transactional mail. |
+| `BREVO_SENDER_NAME` | Sender display name. |
 
 ---
 
