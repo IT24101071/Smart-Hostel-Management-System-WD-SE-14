@@ -3,11 +3,11 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ActivityIndicator, Alert, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../../constants/colors';
 import { getMyLatestBooking } from '../../../services/booking.service';
-import { createTicket, getMyTickets, getTicketErrorMessage, updateMyTicket } from '../../../services/ticket.service';
+import { createTicket, getMyTickets, getTicketErrorMessage, getTicketImageUrls, updateMyTicket } from '../../../services/ticket.service';
 import {
   CATEGORY_ICONS,
   TICKET_CATEGORIES,
@@ -20,7 +20,6 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const MAX_TICKET_IMAGES = 5;
 
 export default function StudentSupportScreen() {
-  const insets = useSafeAreaInsets();
   const { focus } = useLocalSearchParams();
   const router = useRouter();
   const scrollRef = useRef(null);
@@ -43,6 +42,7 @@ export default function StudentSupportScreen() {
   const [editSubject, setEditSubject] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editNewImages, setEditNewImages] = useState([]);
+  const [editPresignedImages, setEditPresignedImages] = useState([]);
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [editShowValidation, setEditShowValidation] = useState(false);
   const subjectLength = subject.trim().length;
@@ -153,19 +153,29 @@ export default function StudentSupportScreen() {
     setImages(nextImages);
   };
 
-  const openEditTicket = (ticket) => {
+  const openEditTicket = async (ticket) => {
     setEditingTicket(ticket);
     setEditCategory(ticket.category || TICKET_CATEGORIES[0]);
     setEditUrgency(ticket.urgency || "Medium");
     setEditSubject(ticket.subject || "");
     setEditDescription(ticket.description || "");
     setEditNewImages([]);
+    setEditPresignedImages([]);
     setEditShowValidation(false);
+    if (ticket.id && Array.isArray(ticket.images) && ticket.images.length > 0) {
+      try {
+        const signed = await getTicketImageUrls(ticket.id);
+        setEditPresignedImages(signed);
+      } catch {
+        // silently ignore — images just won't show
+      }
+    }
   };
 
   const closeEditTicket = () => {
     setEditingTicket(null);
     setEditSubmitting(false);
+    setEditPresignedImages([]);
     setEditShowValidation(false);
   };
 
@@ -292,18 +302,18 @@ export default function StudentSupportScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.safe} edges={["top"]}>
+      <View style={styles.safe}>
         <View style={styles.center}>
           <ActivityIndicator size="large" color={COLORS.primary} />
           <Text style={styles.mutedText}>Loading support desk...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
-      <View style={[styles.header, { paddingTop: insets.top }]}>
+    <View style={styles.safe}>
+      <View style={styles.header}>
         <Pressable
           style={styles.headerBtn}
           onPress={handleBack}
@@ -320,6 +330,8 @@ export default function StudentSupportScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+        automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
       >
         <LinearGradient
           colors={["#204F95", "#0A192F"]}
@@ -525,11 +537,7 @@ export default function StudentSupportScreen() {
                       <Ionicons name="create-outline" size={18} color={COLORS.primary} />
                       <Text style={styles.editTicketBtnText}>Edit</Text>
                     </Pressable>
-                  ) : (
-                    <Text style={styles.editLockedHint}>
-                      Editing locked (assigned or resolved).
-                    </Text>
-                  )}
+                  ) : null}
                 </View>
               );
             })
@@ -580,6 +588,8 @@ export default function StudentSupportScreen() {
             style={styles.editModalScroll}
             contentContainerStyle={styles.editModalContent}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+            automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
           >
             <Text style={styles.sectionTitle}>Category</Text>
             <View style={styles.categoryGrid}>
@@ -608,7 +618,7 @@ export default function StudentSupportScreen() {
             <Text style={styles.editPhotoHint}>
               Adding new photos replaces all current attachments when you save.
             </Text>
-            {Array.isArray(editingTicket?.images) && editingTicket.images.length > 0 ? (
+            {Array.isArray(editPresignedImages) && editPresignedImages.length > 0 ? (
               <>
                 <Text style={styles.editPhotoSectionLabel}>Current</Text>
                 <ScrollView
@@ -617,7 +627,7 @@ export default function StudentSupportScreen() {
                   contentContainerStyle={styles.uploadThumbRow}
                   style={[styles.uploadThumbScroll, styles.editExistingScroll]}
                 >
-                  {editingTicket.images.map((img, idx) => (
+                  {editPresignedImages.map((img, idx) => (
                     <View key={`existing-${img.url ?? idx}`} style={styles.uploadThumbWrap}>
                       {img.url ? (
                         <Image source={{ uri: img.url }} style={styles.uploadThumb} />
@@ -714,7 +724,7 @@ export default function StudentSupportScreen() {
           </ScrollView>
         </SafeAreaView>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -749,7 +759,7 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 14,
-    paddingBottom: 20,
+    paddingBottom: 100,
     paddingTop: 10,
   },
   stayCard: {
@@ -1048,13 +1058,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: COLORS.primary,
   },
-  editLockedHint: {
-    marginTop: 8,
-    fontFamily: "PublicSans_400Regular",
-    fontSize: 11,
-    color: COLORS.textMuted,
-    fontStyle: "italic",
-  },
   editModalSafe: {
     flex: 1,
     backgroundColor: COLORS.studentScreenBackground,
@@ -1100,7 +1103,7 @@ const styles = StyleSheet.create({
   },
   editModalContent: {
     paddingHorizontal: 14,
-    paddingBottom: 28,
+    paddingBottom: 100,
     paddingTop: 8,
   },
   editPhotoHint: {
