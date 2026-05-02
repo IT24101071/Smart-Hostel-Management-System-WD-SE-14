@@ -41,6 +41,10 @@ const userSchema = new mongoose.Schema(
     invitedByRole: { type: String, enum: ["admin", "warden"] },
     invitedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     firstPasswordChangedAt: { type: Date },
+
+    /** Staff / warden — validated at application layer on create/update */
+    nicNumber: { type: String, trim: true, sparse: true, unique: true },
+    nicPhoto: { type: String, trim: true },
   },
   { timestamps: true },
 );

@@ -30,3 +30,23 @@ export const upload = multer({
   fileFilter,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
 });
+
+const bookingIdentityStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = "uploads/booking-identity";
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, `id-${uniqueSuffix}${path.extname(file.originalname)}`);
+  },
+});
+
+export const uploadBookingIdentity = multer({
+  storage: bookingIdentityStorage,
+  fileFilter,
+  limits: { fileSize: 5 * 1024 * 1024 },
+});

@@ -4,7 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../../constants/colors';
 import { getMyLatestBooking } from '../../../services/booking.service';
 import { createTicket, getMyTickets, getTicketErrorMessage, updateMyTicket } from '../../../services/ticket.service';
@@ -20,7 +20,6 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const MAX_TICKET_IMAGES = 5;
 
 export default function StudentSupportScreen() {
-  const insets = useSafeAreaInsets();
   const { focus } = useLocalSearchParams();
   const router = useRouter();
   const scrollRef = useRef(null);
@@ -292,18 +291,21 @@ export default function StudentSupportScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.safe} edges={["top"]}>
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
-          <Text style={styles.mutedText}>Loading support desk...</Text>
+      <SafeAreaView style={styles.safeOuter} edges={["top"]}>
+        <View style={styles.safeInner}>
+          <View style={styles.center}>
+            <ActivityIndicator size="large" color={COLORS.primary} />
+            <Text style={styles.mutedText}>Loading support desk...</Text>
+          </View>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
-      <View style={[styles.header, { paddingTop: insets.top }]}>
+    <SafeAreaView style={styles.safeOuter} edges={["top"]}>
+      <View style={styles.safeInner}>
+      <View style={styles.header}>
         <Pressable
           style={styles.headerBtn}
           onPress={handleBack}
@@ -714,19 +716,22 @@ export default function StudentSupportScreen() {
           </ScrollView>
         </SafeAreaView>
       </Modal>
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: {
+  safeOuter: {
+    flex: 1,
+    backgroundColor: COLORS.white,
+  },
+  safeInner: {
     flex: 1,
     backgroundColor: COLORS.studentScreenBackground,
   },
   header: {
     backgroundColor: COLORS.white,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: COLORS.border,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",

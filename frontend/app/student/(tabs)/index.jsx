@@ -324,6 +324,7 @@ export default function StudentHomeScreen() {
               subtitle={`Status: ${stayCard?.bookingStatus ?? 'pending'}`}
               action="Extend Stay"
               onPress={goBooking}
+              compactValue
             />
             <QuickCard
               icon="people-outline"
@@ -333,22 +334,6 @@ export default function StudentHomeScreen() {
               action="History"
               onPress={goVisitorHistory}
             />
-          </View>
-
-          <Text style={styles.annHeading}>Hostel Announcements</Text>
-          <View style={styles.annCardRed}>
-            <Text style={styles.annTitle}>Water Maintenance</Text>
-            <Text style={styles.annBody}>
-              Scheduled water maintenance on Sunday, April 5th, from 10:00 AM to
-              2:00 PM. Please store water in advance.
-            </Text>
-          </View>
-          <View style={styles.annCardWhite}>
-            <Text style={styles.annTitleDark}>Late Entry Warning</Text>
-            <Text style={styles.annBodyDark}>
-              Reminder: All residents must be inside the hostel premises by
-              10:30 PM unless prior permission is obtained via the app.
-            </Text>
           </View>
         </View>
       </ScrollView>
@@ -365,13 +350,20 @@ function QuickCard({
   onPress,
   actionStyle,
   actionTextStyle,
+  compactValue,
 }) {
   return (
     <View style={styles.quickCard}>
-      <Ionicons name={icon} size={22} color={COLORS.primary} />
-      <Text style={styles.quickTitle}>{title}</Text>
-      <Text style={styles.quickValue}>{value}</Text>
-      <Text style={styles.quickSub}>{subtitle}</Text>
+      <View style={styles.quickCardContent}>
+        <Ionicons name={icon} size={22} color={COLORS.primary} />
+        <Text style={styles.quickTitle}>{title}</Text>
+        <Text
+          style={[styles.quickValue, compactValue && styles.quickValueCompact]}
+        >
+          {value}
+        </Text>
+        <Text style={styles.quickSub}>{subtitle}</Text>
+      </View>
       <Pressable style={[styles.quickBtn, actionStyle]} onPress={onPress}>
         <Text style={[styles.quickBtnText, actionTextStyle]}>{action}</Text>
       </Pressable>
@@ -517,13 +509,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
+    alignItems: 'stretch',
     marginBottom: 16,
   },
   quickCard: {
     width: '48%',
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    flexDirection: 'column',
+    alignSelf: 'stretch',
+  },
+  quickCardContent: {
+    flexShrink: 1,
   },
   quickTitle: {
     fontFamily: 'PublicSans_500Medium',
@@ -537,6 +536,12 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     marginTop: 2,
   },
+  quickValueCompact: {
+    fontSize: 15,
+    lineHeight: 20,
+    marginTop: 4,
+    fontFamily: 'PublicSans_600SemiBold',
+  },
   quickSub: {
     fontFamily: 'PublicSans_400Regular',
     fontSize: 12,
@@ -544,7 +549,8 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   quickBtn: {
-    marginTop: 10,
+    marginTop: 'auto',
+    paddingTop: 10,
     borderColor: '#7FB2E2',
     borderWidth: 1,
     borderRadius: 10,
@@ -561,46 +567,5 @@ const styles = StyleSheet.create({
   },
   quickBtnPaidText: {
     color: '#FFFFFF',
-  },
-  annHeading: {
-    fontFamily: 'PublicSans_700Bold',
-    fontSize: 38,
-    color: '#000000',
-    marginBottom: 10,
-  },
-  annCardRed: {
-    backgroundColor: '#B8131A',
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 10,
-  },
-  annCardWhite: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 14,
-  },
-  annTitle: {
-    fontFamily: 'PublicSans_700Bold',
-    color: '#FFFFFF',
-    fontSize: 23,
-    marginBottom: 4,
-  },
-  annBody: {
-    fontFamily: 'PublicSans_500Medium',
-    color: '#FFFFFF',
-    fontSize: 14,
-    lineHeight: 18,
-  },
-  annTitleDark: {
-    fontFamily: 'PublicSans_700Bold',
-    color: '#111827',
-    fontSize: 23,
-    marginBottom: 4,
-  },
-  annBodyDark: {
-    fontFamily: 'PublicSans_500Medium',
-    color: '#374151',
-    fontSize: 14,
-    lineHeight: 18,
   },
 });

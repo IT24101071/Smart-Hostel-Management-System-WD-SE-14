@@ -69,6 +69,16 @@ const DASHBOARD_ITEMS = [
     active: true,
   },
   {
+    id: "bookings",
+    title: "Booking Management",
+    description: "View all bookings, identity documents & cancel future stays",
+    icon: "calendar-outline",
+    iconColor: "#0EA5E9",
+    iconBg: "#E0F2FE",
+    route: "/admin/bookings",
+    active: true,
+  },
+  {
     id: "admins",
     title: "Admin Management",
     description: "Create, update & secure admin accounts",

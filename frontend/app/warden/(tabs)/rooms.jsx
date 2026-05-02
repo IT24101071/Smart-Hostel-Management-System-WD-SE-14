@@ -6,6 +6,7 @@ import {
   Alert,
   FlatList,
   Image,
+  Linking,
   Modal,
   Pressable,
   RefreshControl,
@@ -17,6 +18,7 @@ import {
 } from "react-native";
 import WardenAppBar from "../../../components/warden/WardenAppBar";
 import WardenSubHeader from "../../../components/warden/WardenSubHeader";
+import { resolveUploadUrl } from "../../../constants/api";
 import { COLORS } from "../../../constants/colors";
 import { storage } from "../../../lib/storage";
 import { getRoomErrorMessage, getRooms } from "../../../services/room.service";
@@ -24,6 +26,44 @@ import {
   getRoomStudents,
   getVisitorErrorMessage,
 } from "../../../services/visitor.service";
+
+function dash(value) {
+  if (value === null || value === undefined) return "—";
+  const s = String(value).trim();
+  return s === "" ? "—" : s;
+}
+
+function formatGender(g) {
+  if (g === "male") return "Male";
+  if (g === "female") return "Female";
+  return dash(g);
+}
+
+function identityDocNumberLabel(docType) {
+  if (docType === "passport") return "Passport number";
+  if (docType === "nic") return "NIC number";
+  return "Document number";
+}
+
+/** RN Image cannot render PDFs — detect by URL path so we show an open link instead. */
+function isPdfDocumentUrl(pathOrUrl) {
+  if (!pathOrUrl) return false;
+  const path = String(pathOrUrl).split("?")[0].split("#")[0].toLowerCase();
+  return path.endsWith(".pdf");
+}
+
+async function openExternalDocument(url) {
+  try {
+    const supported = await Linking.canOpenURL(url);
+    if (!supported) {
+      Alert.alert("Cannot open", "This device cannot open this URL.");
+      return;
+    }
+    await Linking.openURL(url);
+  } catch {
+    Alert.alert("Error", "Could not open the document.");
+  }
+}
 
 export default function WardenRoomsScreen() {
   const router = useRouter();
@@ -33,6 +73,7 @@ export default function WardenRoomsScreen() {
   const [searchText, setSearchText] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedRoom, setSelectedRoom] = useState(null);
+  const [selectedMember, setSelectedMember] = useState(null);
   const [roomStudents, setRoomStudents] = useState([]);
   const [studentsLoading, setStudentsLoading] = useState(false);
 
@@ -100,9 +141,14 @@ export default function WardenRoomsScreen() {
   }
 
   function closeRoomDetails() {
+    setSelectedMember(null);
     setSelectedRoom(null);
     setRoomStudents([]);
     setStudentsLoading(false);
+  }
+
+  function closeMemberModal() {
+    setSelectedMember(null);
   }
 
   function renderRoomCard({ item }) {
@@ -247,20 +293,171 @@ export default function WardenRoomsScreen() {
                 </View>
               ) : roomStudents.length ? (
                 roomStudents.map((student) => (
-                  <View key={String(student.id)} style={styles.memberCard}>
+                  <Pressable
+                    key={String(student.id)}
+                    style={({ pressed }) => [
+                      styles.memberCard,
+                      pressed && styles.memberCardPressed,
+                    ]}
+                    onPress={() => setSelectedMember(student)}
+                  >
                     <Ionicons name="person-outline" size={16} color={COLORS.primary} />
                     <View style={styles.memberMeta}>
                       <Text style={styles.memberName}>{student.name || "Unnamed"}</Text>
                       <Text style={styles.memberSub}>
                         Student ID: {student.studentId || "N/A"}
                       </Text>
+                      <Text style={styles.memberTapHint}>Tap for full profile & NIC</Text>
                     </View>
-                  </View>
+                    <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
+                  </Pressable>
                 ))
               ) : (
                 <Text style={styles.noMembersText}>No students are currently assigned.</Text>
               )}
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={Boolean(selectedMember)}
+        transparent
+        animationType="slide"
+        onRequestClose={closeMemberModal}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.memberDetailCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Student profile</Text>
+              <Pressable onPress={closeMemberModal}>
+                <Ionicons name="close" size={22} color={COLORS.textMuted} />
+              </Pressable>
+            </View>
+
+            {selectedMember ? (
+              <ScrollView
+                style={styles.modalScroll}
+                contentContainerStyle={styles.memberDetailContent}
+                showsVerticalScrollIndicator={false}
+              >
+                <View style={styles.detailsCard}>
+                  <Text style={styles.detailLine}>Name: {dash(selectedMember.name)}</Text>
+                  <Text style={styles.detailLine}>
+                    Student ID: {dash(selectedMember.studentId)}
+                  </Text>
+                  <Text style={styles.detailLine}>Email: {dash(selectedMember.email)}</Text>
+                  <Text style={styles.detailLine}>
+                    Phone: {dash(selectedMember.contactNo)}
+                  </Text>
+                  <Text style={styles.detailLine}>
+                    Gender: {formatGender(selectedMember.gender)}
+                  </Text>
+                  <Text style={styles.detailLine}>
+                    Year / Semester:{" "}
+                    {selectedMember.year != null || selectedMember.semester != null
+                      ? `${selectedMember.year ?? "—"} / ${selectedMember.semester ?? "—"}`
+                      : "—"}
+                  </Text>
+                  <Text style={styles.detailLine}>
+                    Guardian: {dash(selectedMember.guardianName)}
+                  </Text>
+                  <Text style={styles.detailLine}>
+                    Guardian contact: {dash(selectedMember.guardianContact)}
+                  </Text>
+                  <Text style={styles.detailLine}>Room: {dash(selectedMember.roomNumber)}</Text>
+                </View>
+
+                <Text style={styles.memberHeading}>
+                  {selectedMember.identityDocumentType === "passport"
+                    ? "Passport"
+                    : selectedMember.identityDocumentType === "nic"
+                      ? "NIC"
+                      : "Identity document"}
+                </Text>
+                <View style={styles.detailsCard}>
+                  <Text style={styles.detailLine}>
+                    {identityDocNumberLabel(selectedMember.identityDocumentType)}:{" "}
+                    {dash(selectedMember.nicNumber)}
+                  </Text>
+                  {(() => {
+                    const rawPath = selectedMember.nicPhoto;
+                    const docUrl = resolveUploadUrl(rawPath);
+                    if (!docUrl) {
+                      return (
+                        <Text style={styles.noPhotoText}>
+                          No identity document on file for this booking.
+                        </Text>
+                      );
+                    }
+                    const isPdf =
+                      isPdfDocumentUrl(rawPath) || isPdfDocumentUrl(docUrl);
+                    if (isPdf) {
+                      return (
+                        <Pressable
+                          style={({ pressed }) => [
+                            styles.pdfOpenBtn,
+                            pressed && styles.pdfOpenBtnPressed,
+                          ]}
+                          onPress={() => openExternalDocument(docUrl)}
+                        >
+                          <Ionicons
+                            name="document-text-outline"
+                            size={22}
+                            color={COLORS.primary}
+                          />
+                          <Text style={styles.pdfOpenBtnText}>
+                            Open identity document (PDF)
+                          </Text>
+                          <Ionicons name="open-outline" size={18} color={COLORS.primary} />
+                        </Pressable>
+                      );
+                    }
+                    return (
+                      <>
+                        <Image
+                          source={{ uri: docUrl }}
+                          style={styles.nicPhoto}
+                          resizeMode="contain"
+                        />
+                        <Pressable onPress={() => openExternalDocument(docUrl)}>
+                          <Text style={styles.openDocLink}>Open full image in browser</Text>
+                        </Pressable>
+                      </>
+                    );
+                  })()}
+                </View>
+
+                {(resolveUploadUrl(selectedMember.profileImage) ||
+                  resolveUploadUrl(selectedMember.idCardImage)) && (
+                  <>
+                    <Text style={styles.memberHeading}>Other documents</Text>
+                    <View style={styles.optionalImagesRow}>
+                      {resolveUploadUrl(selectedMember.profileImage) ? (
+                        <View style={styles.optionalImageWrap}>
+                          <Text style={styles.optionalImageLabel}>Profile</Text>
+                          <Image
+                            source={{ uri: resolveUploadUrl(selectedMember.profileImage) }}
+                            style={styles.optionalImage}
+                            resizeMode="cover"
+                          />
+                        </View>
+                      ) : null}
+                      {resolveUploadUrl(selectedMember.idCardImage) ? (
+                        <View style={styles.optionalImageWrap}>
+                          <Text style={styles.optionalImageLabel}>ID card</Text>
+                          <Image
+                            source={{ uri: resolveUploadUrl(selectedMember.idCardImage) }}
+                            style={styles.optionalImage}
+                            resizeMode="cover"
+                          />
+                        </View>
+                      ) : null}
+                    </View>
+                  </>
+                )}
+              </ScrollView>
+            ) : null}
           </View>
         </View>
       </Modal>
@@ -463,8 +660,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
+  memberCardPressed: {
+    opacity: 0.92,
+    backgroundColor: COLORS.background,
+  },
   memberMeta: {
     flex: 1,
+  },
+  memberTapHint: {
+    marginTop: 4,
+    fontFamily: "PublicSans_400Regular",
+    fontSize: 11,
+    color: COLORS.primary,
   },
   memberName: {
     fontFamily: "PublicSans_600SemiBold",
@@ -483,5 +690,85 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     fontStyle: "italic",
     marginTop: 2,
+  },
+  memberDetailCard: {
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 14,
+    paddingHorizontal: 16,
+    minHeight: "55%",
+    maxHeight: "92%",
+  },
+  memberDetailContent: {
+    paddingBottom: 28,
+    gap: 4,
+  },
+  nicPhoto: {
+    marginTop: 10,
+    width: "100%",
+    height: 220,
+    borderRadius: 10,
+    backgroundColor: COLORS.background,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  pdfOpenBtn: {
+    marginTop: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primaryLight,
+  },
+  pdfOpenBtnPressed: {
+    opacity: 0.88,
+  },
+  pdfOpenBtnText: {
+    flex: 1,
+    fontFamily: "PublicSans_600SemiBold",
+    fontSize: 15,
+    color: COLORS.primaryDark,
+  },
+  openDocLink: {
+    marginTop: 10,
+    fontFamily: "PublicSans_600SemiBold",
+    fontSize: 14,
+    color: COLORS.primary,
+    textDecorationLine: "underline",
+  },
+  noPhotoText: {
+    marginTop: 8,
+    fontFamily: "PublicSans_400Regular",
+    fontSize: 13,
+    color: COLORS.textMuted,
+    fontStyle: "italic",
+  },
+  optionalImagesRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    marginBottom: 8,
+  },
+  optionalImageWrap: {
+    gap: 6,
+  },
+  optionalImageLabel: {
+    fontFamily: "PublicSans_600SemiBold",
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+  optionalImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.background,
   },
 });

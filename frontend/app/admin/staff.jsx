@@ -5,6 +5,8 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -15,9 +17,11 @@ import {
   TextInput,
   View,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AdminSubHeader from "../../components/admin/AdminSubHeader";
 import { COLORS } from "../../constants/colors";
+import { validateNicInput } from "../../lib/nicValidation";
 import {
   createStaff,
   deleteStaff,
@@ -63,8 +67,20 @@ export default function AdminStaffManagement() {
   const [showModal, setShowModal] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [activeUser, setActiveUser] = useState(null);
-  const [form, setForm] = useState({ name: "", email: "", password: "" });
-  const [formData, setFormData] = useState({ name: "", email: "", password: "" });
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    password: "",
+    nicNumber: "",
+  });
+  const [modalNicPhotoPick, setModalNicPhotoPick] = useState(null);
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    password: "",
+    nicNumber: "",
+  });
+  const [addNicPhotoPick, setAddNicPhotoPick] = useState(null);
 
   const summary = useMemo(() => {
     const total = Number(meta.totalStaff ?? items.length ?? 0);
@@ -122,7 +138,9 @@ export default function AdminStaffManagement() {
       name: user?.name ?? "",
       email: user?.email ?? "",
       password: "",
+      nicNumber: user?.nicNumber ?? "",
     });
+    setModalNicPhotoPick(null);
     setShowModal(true);
   };
 
@@ -131,7 +149,50 @@ export default function AdminStaffManagement() {
     setShowModal(false);
     setActiveUser(null);
     setEditMode(false);
-    setForm({ name: "", email: "", password: "" });
+    setForm({ name: "", email: "", password: "", nicNumber: "" });
+    setModalNicPhotoPick(null);
+  };
+
+  const pickAddNicPhoto = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert("Permission", "Allow photo library access to attach a NIC photo.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.85,
+    });
+    if (!result.canceled && result.assets?.[0]) {
+      const a = result.assets[0];
+      setAddNicPhotoPick({
+        uri: a.uri,
+        type: a.mimeType || "image/jpeg",
+        name: a.fileName || "nic.jpg",
+      });
+    }
+  };
+
+  const pickModalNicPhoto = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert("Permission", "Allow photo library access to attach a NIC photo.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.85,
+    });
+    if (!result.canceled && result.assets?.[0]) {
+      const a = result.assets[0];
+      setModalNicPhotoPick({
+        uri: a.uri,
+        type: a.mimeType || "image/jpeg",
+        name: a.fileName || "nic.jpg",
+      });
+    }
   };
 
   const onSubmit = async () => {
@@ -156,12 +217,30 @@ export default function AdminStaffManagement() {
       return;
     }
 
+    const nicCheck = validateNicInput(form.nicNumber);
+    if (!nicCheck.ok) {
+      Alert.alert("Validation", nicCheck.message);
+      return;
+    }
+
     try {
       setSubmitting(true);
       if (editMode && activeUser?.id) {
-        await updateStaff(activeUser.id, { name, email, password });
+        await updateStaff(activeUser.id, {
+          name,
+          email,
+          password: password || undefined,
+          nicNumber: form.nicNumber?.trim(),
+          nicPhoto: modalNicPhotoPick || undefined,
+        });
       } else {
-        await createStaff({ name, email, password });
+        await createStaff({
+          name,
+          email,
+          password,
+          nicNumber: form.nicNumber?.trim(),
+          nicPhoto: modalNicPhotoPick || undefined,
+        });
       }
       closeModal();
       await loadStaff();
@@ -185,6 +264,11 @@ export default function AdminStaffManagement() {
       Alert.alert("Error", "Password must be at least 6 characters");
       return;
     }
+    const nicCheck = validateNicInput(formData.nicNumber);
+    if (!nicCheck.ok) {
+      Alert.alert("Validation", nicCheck.message);
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -192,9 +276,12 @@ export default function AdminStaffManagement() {
         name: formData.name.trim(),
         email: formData.email.trim(),
         password: formData.password,
+        nicNumber: formData.nicNumber.trim(),
+        nicPhoto: addNicPhotoPick || undefined,
       });
       Alert.alert("Success", "Staff account created");
-      setFormData({ name: "", email: "", password: "" });
+      setFormData({ name: "", email: "", password: "", nicNumber: "" });
+      setAddNicPhotoPick(null);
       setTab("list");
       await loadStaff();
     } catch (error) {
@@ -243,6 +330,7 @@ export default function AdminStaffManagement() {
           <View style={styles.cardTitleWrap}>
             <Text style={styles.cardTitle}>{item.name}</Text>
             <Text style={styles.cardSubtitle}>{item.email}</Text>
+            <Text style={styles.cardNic}>NIC: {item.nicNumber ?? "—"}</Text>
             <Text style={styles.cardCreator}>{creatorLabel(item)}</Text>
           </View>
           <View
@@ -405,6 +493,30 @@ export default function AdminStaffManagement() {
                   secureTextEntry
                 />
               </View>
+              <View style={styles.fieldGroup}>
+                <Text style={styles.label}>NIC number</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="12 digits (new) or 9 digits + V/X"
+                  placeholderTextColor={COLORS.textMuted}
+                  value={formData.nicNumber}
+                  onChangeText={(text) => setFormData((f) => ({ ...f, nicNumber: text }))}
+                  autoCapitalize="characters"
+                />
+              </View>
+              <Pressable style={styles.nicPhotoBtn} onPress={pickAddNicPhoto}>
+                <Ionicons name="image-outline" size={20} color={COLORS.primary} />
+                <Text style={styles.nicPhotoBtnText}>
+                  {addNicPhotoPick ? "NIC photo selected" : "Optional: NIC photo"}
+                </Text>
+              </Pressable>
+              {addNicPhotoPick ? (
+                <Image
+                  source={{ uri: addNicPhotoPick.uri }}
+                  style={styles.nicThumbAdd}
+                  resizeMode="cover"
+                />
+              ) : null}
               <Pressable
                 style={[styles.submitButton, submitting && styles.submitButtonDisabled]}
                 onPress={handleCreateStaff}
@@ -428,27 +540,62 @@ export default function AdminStaffManagement() {
             <Pressable style={styles.modalBackdrop} onPress={closeModal} />
             <View style={styles.modalCard}>
               <Text style={styles.modalTitle}>{editMode ? "Edit staff" : "Add staff"}</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Full name"
-                value={form.name}
-                onChangeText={(value) => setForm((prev) => ({ ...prev, name: value }))}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Email"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                value={form.email}
-                onChangeText={(value) => setForm((prev) => ({ ...prev, email: value }))}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder={editMode ? "New password (optional)" : "Password"}
-                secureTextEntry
-                value={form.password}
-                onChangeText={(value) => setForm((prev) => ({ ...prev, password: value }))}
-              />
+              <ScrollView
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                style={styles.modalScroll}
+              >
+                <TextInput
+                  style={styles.input}
+                  placeholder="Full name"
+                  value={form.name}
+                  onChangeText={(value) => setForm((prev) => ({ ...prev, name: value }))}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Email"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  value={form.email}
+                  onChangeText={(value) => setForm((prev) => ({ ...prev, email: value }))}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder={editMode ? "New password (optional)" : "Password"}
+                  secureTextEntry
+                  value={form.password}
+                  onChangeText={(value) => setForm((prev) => ({ ...prev, password: value }))}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="NIC (12 digits or 9 + V/X)"
+                  autoCapitalize="characters"
+                  value={form.nicNumber}
+                  onChangeText={(value) => setForm((prev) => ({ ...prev, nicNumber: value }))}
+                />
+                {editMode && activeUser?.nicPhoto ? (
+                  <Pressable
+                    style={styles.nicLinkRow}
+                    onPress={() => Linking.openURL(activeUser.nicPhoto)}
+                  >
+                    <Text style={styles.nicLinkText}>Open current NIC photo</Text>
+                    <Ionicons name="open-outline" size={18} color={COLORS.primary} />
+                  </Pressable>
+                ) : null}
+                <Pressable style={styles.nicPhotoBtn} onPress={pickModalNicPhoto}>
+                  <Ionicons name="camera-outline" size={20} color={COLORS.primary} />
+                  <Text style={styles.nicPhotoBtnText}>
+                    {modalNicPhotoPick ? "Replace NIC photo" : "Optional: NIC photo"}
+                  </Text>
+                </Pressable>
+                {modalNicPhotoPick ? (
+                  <Image
+                    source={{ uri: modalNicPhotoPick.uri }}
+                    style={styles.nicThumb}
+                    resizeMode="cover"
+                  />
+                ) : null}
+              </ScrollView>
               <View style={styles.modalActions}>
                 <Pressable style={styles.modalBtnSecondary} onPress={closeModal}>
                   <Text style={styles.modalBtnSecondaryText}>Cancel</Text>
@@ -623,6 +770,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.textMuted,
   },
+  cardNic: {
+    marginTop: 4,
+    fontFamily: "PublicSans_500Medium",
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
   cardCreator: {
     marginTop: 4,
     fontFamily: "PublicSans_400Regular",
@@ -699,6 +852,45 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: COLORS.textPrimary,
     marginBottom: 4,
+  },
+  modalScroll: {
+    maxHeight: 280,
+  },
+  nicPhotoBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 8,
+    marginBottom: 4,
+  },
+  nicPhotoBtnText: {
+    fontFamily: "PublicSans_500Medium",
+    fontSize: 14,
+    color: COLORS.primary,
+  },
+  nicThumb: {
+    width: "100%",
+    height: 120,
+    borderRadius: 10,
+    marginBottom: 8,
+  },
+  nicThumbAdd: {
+    width: "100%",
+    height: 140,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  nicLinkRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 8,
+    marginBottom: 4,
+  },
+  nicLinkText: {
+    fontFamily: "PublicSans_600SemiBold",
+    fontSize: 13,
+    color: COLORS.primary,
   },
   input: {
     borderWidth: 1,

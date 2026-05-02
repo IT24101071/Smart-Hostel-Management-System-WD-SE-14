@@ -40,6 +40,19 @@ export const uploadRoomImages = multer({
   },
 });
 
+/** Multer only when multipart — keeps JSON bodies on POST/PATCH without files. */
+export function optionalNicPhotoFields(req, res, next) {
+  const ct = (req.headers["content-type"] || "").toLowerCase();
+  if (ct.includes("multipart/form-data")) {
+    const upload = uploadRoomImages.fields([{ name: "nicPhoto", maxCount: 1 }]);
+    return upload(req, res, (err) => {
+      if (err) return handleUploadError(err, req, res, next);
+      next();
+    });
+  }
+  next();
+}
+
 export const handleUploadError = (error, req, res, next) => {
   if (!error) return next();
 

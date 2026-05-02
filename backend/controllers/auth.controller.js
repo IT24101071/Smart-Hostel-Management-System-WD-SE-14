@@ -15,6 +15,7 @@ import {
   sendOperationalAccountInvitationEmail,
   sendOperationalAccountActivatedEmail,
 } from "../utils/brevoEmail.js";
+import { parseNic } from "../utils/nicValidation.js";
 
 const GENDERS = ["male", "female"];
 
@@ -778,7 +779,7 @@ export const createAdmin = async (req, res) => {
 
 export const createWarden = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, nicNumber } = req.body;
 
     if (!name || !email || !password) {
       return res
@@ -786,9 +787,29 @@ export const createWarden = async (req, res) => {
         .json({ message: "Name, email, and password are required" });
     }
 
+    const nicParsed = parseNic(nicNumber);
+    if (!nicParsed.ok) {
+      return res.status(400).json({ message: nicParsed.message });
+    }
+
     const existing = await User.findOne({ email });
     if (existing) {
       return res.status(400).json({ message: "Email already registered" });
+    }
+
+    const nicTaken = await User.findOne({ nicNumber: nicParsed.normalized });
+    if (nicTaken) {
+      return res.status(400).json({ message: "This NIC is already registered" });
+    }
+
+    let nicPhotoUrl;
+    const nicFile = req.files?.nicPhoto?.[0];
+    if (nicFile?.buffer) {
+      nicPhotoUrl = await uploadBufferToR2(
+        nicFile.buffer,
+        nicFile.originalname,
+        nicFile.mimetype,
+      );
     }
 
     const hashed = await bcrypt.hash(password, 10);
@@ -801,6 +822,8 @@ export const createWarden = async (req, res) => {
       mustChangePasswordOnFirstLogin: true,
       invitedByRole: "admin",
       invitedBy: req.user?.id,
+      nicNumber: nicParsed.normalized,
+      ...(nicPhotoUrl ? { nicPhoto: nicPhotoUrl } : {}),
     });
 
     try {
@@ -815,14 +838,11 @@ export const createWarden = async (req, res) => {
       console.error("[createWarden] Invitation email failed:", emailError);
     }
 
+    const safe = warden.toObject();
+    delete safe.password;
     res.status(201).json({
       message: "Warden account created successfully",
-      user: {
-        id: warden._id,
-        name: warden.name,
-        email: warden.email,
-        role: warden.role,
-      },
+      user: safe,
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -1024,11 +1044,37 @@ export const updateUser = async (req, res) => {
       guardianContact,
       gender,
       isApproved,
+      nicNumber,
     } = req.body;
 
     const target = await User.findById(req.params.id).select("+password");
     if (!target) return res.status(404).json({ message: "User not found" });
     const isAdminTarget = target.role === "admin";
+
+    if (target.role === "warden") {
+      if (nicNumber !== undefined && nicNumber !== null && nicNumber !== "") {
+        const parsed = parseNic(nicNumber);
+        if (!parsed.ok) {
+          return res.status(400).json({ message: parsed.message });
+        }
+        const dup = await User.findOne({
+          nicNumber: parsed.normalized,
+          _id: { $ne: target._id },
+        });
+        if (dup) {
+          return res.status(400).json({ message: "This NIC is already registered" });
+        }
+        target.nicNumber = parsed.normalized;
+      }
+      const nicFile = req.files?.nicPhoto?.[0];
+      if (nicFile?.buffer) {
+        target.nicPhoto = await uploadBufferToR2(
+          nicFile.buffer,
+          nicFile.originalname,
+          nicFile.mimetype,
+        );
+      }
+    }
 
     if (email && email !== target.email) {
       const exists = await User.findOne({ email });
