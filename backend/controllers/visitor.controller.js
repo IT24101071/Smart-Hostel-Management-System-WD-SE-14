@@ -429,7 +429,10 @@ export const getRoomStudents = async (req, res) => {
     })
       .sort({ createdAt: -1 })
       .populate("room", "roomNumber")
-      .populate("student", "name studentId");
+      .populate(
+        "student",
+        "name studentId email gender year semester contactNo guardianName guardianContact profileImage idCardImage nicNumber nicPhoto",
+      );
 
     const normalized = roomNumber.toLowerCase();
     const matches = bookings.filter((booking) => {
@@ -442,11 +445,34 @@ export const getRoomStudents = async (req, res) => {
       const student = booking?.student;
       const studentId = String(student?._id ?? "");
       if (!studentId || dedup.has(studentId)) continue;
+
+      const yearNum = Number(student?.year);
+      const semesterNum = Number(student?.semester);
+
+      // Booking payment flow stores NIC/passport on Booking, not User — prefer those for display.
+      const bookingDocType = sanitizeText(booking?.identityDocumentType);
+      const bookingDocNumber = sanitizeText(booking?.identityDocumentNumber);
+      const bookingDocImageUrl = sanitizeText(booking?.identityDocumentImageUrl);
+      const userNic = sanitizeText(student?.nicNumber);
+      const userNicPhoto = sanitizeText(student?.nicPhoto);
+
       dedup.set(studentId, {
         id: studentId,
         name: sanitizeText(student?.name),
         studentId: sanitizeText(student?.studentId),
         roomNumber: sanitizeText(booking?.room?.roomNumber),
+        email: sanitizeText(student?.email),
+        gender: sanitizeText(student?.gender),
+        year: Number.isFinite(yearNum) ? yearNum : null,
+        semester: Number.isFinite(semesterNum) ? semesterNum : null,
+        contactNo: sanitizeText(student?.contactNo),
+        guardianName: sanitizeText(student?.guardianName),
+        guardianContact: sanitizeText(student?.guardianContact),
+        profileImage: sanitizeText(student?.profileImage),
+        idCardImage: sanitizeText(student?.idCardImage),
+        identityDocumentType: bookingDocType || null,
+        nicNumber: bookingDocNumber || userNic,
+        nicPhoto: bookingDocImageUrl || userNicPhoto,
       });
     }
 

@@ -70,17 +70,20 @@ export default function StudentExpensesScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.safe} edges={['top']}>
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
-          <Text style={styles.loadingText}>Loading expenses...</Text>
+      <SafeAreaView style={styles.safeOuter} edges={['top']}>
+        <View style={styles.safeInner}>
+          <View style={styles.center}>
+            <ActivityIndicator size="large" color={COLORS.primary} />
+            <Text style={styles.loadingText}>Loading expenses...</Text>
+          </View>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={styles.safeOuter} edges={['top']}>
+      <View style={styles.safeInner}>
       <View style={styles.header}>
         <Ionicons name="wallet-outline" size={32} color={COLORS.primary} style={styles.headerIcon} />
         <Text style={styles.title}>My Expenses</Text>
@@ -199,12 +202,17 @@ export default function StudentExpensesScreen() {
           </View>
         </View>
       </Modal>
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: {
+  safeOuter: {
+    flex: 1,
+    backgroundColor: COLORS.white,
+  },
+  safeInner: {
     flex: 1,
     backgroundColor: COLORS.studentScreenBackground,
   },
@@ -223,9 +231,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.borderLight,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.white,
   },
   headerIcon: {
     marginRight: 10,

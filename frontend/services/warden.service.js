@@ -24,20 +24,67 @@ export async function getStaffList(params = {}) {
   };
 }
 
+function buildCreateStaffFormData(payload) {
+  const form = new FormData();
+  form.append("name", payload.name?.trim() ?? "");
+  form.append("email", payload.email?.trim() ?? "");
+  form.append("password", payload.password ?? "");
+  form.append("nicNumber", payload.nicNumber?.trim() ?? "");
+  if (payload.nicPhoto?.uri) {
+    form.append("nicPhoto", {
+      uri: payload.nicPhoto.uri,
+      type: payload.nicPhoto.type || "image/jpeg",
+      name: payload.nicPhoto.name || "nic.jpg",
+    });
+  }
+  return form;
+}
+
 export async function createStaff(payload) {
-  const { data } = await apiClient.post("/warden/staff", {
-    name: payload.name?.trim(),
-    email: payload.email?.trim(),
-    password: payload.password ?? "",
-  });
+  const { data } = await apiClient.post(
+    "/warden/staff",
+    buildCreateStaffFormData(payload),
+  );
   return mapUser(data?.user);
 }
 
 export async function updateStaff(id, payload) {
+  const hasNicPhoto = Boolean(payload.nicPhoto?.uri);
+  if (hasNicPhoto) {
+    const form = new FormData();
+    if (payload.name !== undefined) {
+      form.append("name", String(payload.name ?? "").trim());
+    }
+    if (payload.email !== undefined) {
+      form.append("email", String(payload.email ?? "").trim());
+    }
+    if (payload.password !== undefined && String(payload.password).trim() !== "") {
+      form.append("password", String(payload.password));
+    }
+    if (payload.nicNumber !== undefined) {
+      form.append("nicNumber", String(payload.nicNumber ?? "").trim());
+    }
+    form.append("nicPhoto", {
+      uri: payload.nicPhoto.uri,
+      type: payload.nicPhoto.type || "image/jpeg",
+      name: payload.nicPhoto.name || "nic.jpg",
+    });
+    const { data } = await apiClient.patch(
+      `/warden/staff/${encodeURIComponent(id)}`,
+      form,
+    );
+    return mapUser(data?.user);
+  }
+
   const requestBody = {};
   if (payload.name !== undefined) requestBody.name = payload.name?.trim();
   if (payload.email !== undefined) requestBody.email = payload.email?.trim();
-  if (payload.password !== undefined) requestBody.password = payload.password;
+  if (payload.password !== undefined && payload.password !== "") {
+    requestBody.password = payload.password;
+  }
+  if (payload.nicNumber !== undefined) {
+    requestBody.nicNumber = payload.nicNumber?.trim();
+  }
   const { data } = await apiClient.patch(
     `/warden/staff/${encodeURIComponent(id)}`,
     requestBody,

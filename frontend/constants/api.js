@@ -141,3 +141,14 @@ export function getNextApiBaseUrl(currentBaseUrl) {
 }
 
 export const API_TIMEOUT_MS = 10_000;
+
+/** Turn a relative upload path (e.g. `/uploads/...`) into a full URL using the API host (strip `/api`). */
+export function resolveUploadUrl(pathOrUrl) {
+  if (!pathOrUrl) return null;
+  const s = String(pathOrUrl).trim();
+  if (!s) return null;
+  if (/^https?:\/\//i.test(s)) return s;
+  const base = API_BASE_URL.replace(/\/api$/, "");
+  const path = s.startsWith("/") ? s : `/${s}`;
+  return `${base}${path}`;
+}

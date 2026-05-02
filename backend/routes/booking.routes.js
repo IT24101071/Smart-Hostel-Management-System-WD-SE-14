@@ -1,5 +1,6 @@
 import express from "express";
 import {
+  adminCancelBooking,
   cancelBooking,
   createBooking,
   deleteAllBookings,
@@ -16,6 +17,7 @@ router.get("/me/latest", protect, getMyLatestBooking);
 router.get("/me", protect, getMyBookings);
 router.get("/:id/receipt", protect, getBookingReceipt);
 router.post("/:id/cancel", protect, cancelBooking);
+router.post("/:id/admin-cancel", protect, adminOnly, adminCancelBooking);
 router.post("/:id/extend", protect, extendBooking);
 router.delete("/", protect, adminOnly, deleteAllBookings);
 router.post("/", protect, createBooking);

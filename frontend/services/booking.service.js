@@ -111,6 +111,26 @@ export async function uploadReceipt(fileUri) {
   });
 }
 
+export async function uploadBookingIdentity(fileUri, suggestedName) {
+  if (!fileUri) return null;
+
+  const formData = new FormData();
+  const filename =
+    suggestedName || String(fileUri).split("/").pop() || "identity.jpg";
+  const type = mimeFromReceiptFilename(filename);
+
+  formData.append("identityDocument", {
+    uri: fileUri,
+    name: filename,
+    type,
+  });
+
+  return fetchApi("/upload/booking-identity", {
+    method: "POST",
+    body: formData,
+  });
+}
+
 function mapBooking(raw) {
   if (!raw) return null;
   const room = raw.room
