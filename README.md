@@ -15,9 +15,6 @@
 | IT24101603 | Palihawadana T. S. | Maintenance & Complaint Ticketing |
 | IT24103041  | Buddhika P.Y.H | Visitor & Security Logging / Admin Management |
 
-## 03). Deployment Details
-**Backend URL:** [https://smart-hostel-management-system-wd-se-14.onrender.com](https://smart-hostel-management-system-wd-se-14.onrender.com)
-
 ---
 
 ## Project Structure
