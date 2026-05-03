@@ -33,6 +33,7 @@ app.use("/api/tickets", ticketRoutes);
 app.use("/api/visitors", visitorRoutes);
 
 app.get("/health", (req, res) => res.send("API is running!"));
+app.get("/api", (req, res) => res.send("API is running!"));
 
 const PORT = process.env.PORT || 5000;
 // Listen on all interfaces so phones/emulators on the LAN can reach the API (not only 127.0.0.1).
