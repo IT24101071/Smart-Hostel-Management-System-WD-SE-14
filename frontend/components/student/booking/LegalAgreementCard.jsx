@@ -25,7 +25,7 @@ export default function LegalAgreementCard({ agreed, onToggle }) {
         </Text>
         <Text style={styles.rule}>
           Quiet Hours: Strict quiet hours are enforced from 11:00 PM to 6:00 AM
-          to support students' study schedules.
+          to support students&apos; study schedules.
         </Text>
 
         <Pressable

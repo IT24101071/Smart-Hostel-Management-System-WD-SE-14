@@ -94,6 +94,15 @@ function getFullUrl(path) {
 
 export default function PaymentManagement() {
   const router = useRouter();
+
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+    router.replace("/admin");
+  };
+
   const [tab, setTab] = useState("pending");
   const [payments, setPayments] = useState([]);
   const [stats, setStats] = useState({});
@@ -302,7 +311,7 @@ export default function PaymentManagement() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["bottom"]}>
-      <AdminSubHeader title="Payment Management" />
+      <AdminSubHeader title="Payment Management" onBack={handleBack} />
 
       {renderStatsCard()}
 

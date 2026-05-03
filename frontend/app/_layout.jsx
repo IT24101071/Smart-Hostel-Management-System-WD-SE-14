@@ -5,40 +5,31 @@ import {
   PublicSans_700Bold,
   useFonts,
 } from '@expo-google-fonts/public-sans';
-import { Stack, usePathname } from 'expo-router';
+import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
 import SafeScreen from '../components/safeScreen/SafeScreen';
 import { useEffect } from 'react';
+import { Platform, StatusBar } from 'react-native';
 import { COLORS } from '../constants/colors';
 
 SplashScreen.preventAutoHideAsync();
 
 function AppNavigation() {
-  const pathname = usePathname();
-  const isLanding = !pathname || pathname === '/';
-  const isStudentRoute = pathname?.startsWith('/student');
-  const stackBg = isLanding || isStudentRoute
-    ? COLORS.studentScreenBackground
-    : '#FFFFFF';
   return (
-    <>
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: {
-            flex: 1,
-            backgroundColor: stackBg,
-          },
-        }}
-      >
-        <Stack.Screen name="admin" />
-        <Stack.Screen name="staff" />
-        <Stack.Screen name="(auth)" />
-      </Stack>
-      <StatusBar style="dark" />
-    </>
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        contentStyle: {
+          flex: 1,
+          backgroundColor: COLORS.studentScreenBackground,
+        },
+      }}
+    >
+      <Stack.Screen name="admin" />
+      <Stack.Screen name="staff" />
+      <Stack.Screen name="(auth)" />
+    </Stack>
   );
 }
 
@@ -60,6 +51,11 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
+      <StatusBar
+        barStyle="dark-content"
+        translucent={Platform.OS === 'android' ? false : undefined}
+        backgroundColor={Platform.OS === 'android' ? '#FFFFFF' : undefined}
+      />
       <SafeScreen>
         <AppNavigation />
       </SafeScreen>

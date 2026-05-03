@@ -84,7 +84,7 @@ export default function FirstLoginChangePasswordScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={["bottom", "left", "right"]}>
       <StatusBar barStyle="dark-content" backgroundColor="#C8DAEA" />
       <KeyboardAvoidingView
         style={styles.flex}

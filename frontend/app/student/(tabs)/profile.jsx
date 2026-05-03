@@ -394,7 +394,7 @@ export default function StudentProfileScreen() {
   if (loading && !user) {
     return (
       <View style={styles.root}>
-        <View style={[styles.headerWrap, { paddingTop: insets.top }]}>
+        <View style={styles.headerWrap}>
           <View style={styles.headerBar}>
             <Pressable
               style={styles.headerIconWrap}
@@ -422,7 +422,7 @@ export default function StudentProfileScreen() {
 
   return (
     <View style={styles.root}>
-      <View style={[styles.headerWrap, { paddingTop: insets.top }]}>
+      <View style={styles.headerWrap}>
         <View style={styles.headerBar}>
           <Pressable
             style={styles.headerIconWrap}
