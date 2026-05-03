@@ -22,7 +22,13 @@ function pickImageFlow() {
   });
 }
 
-export default function ReceiptUploadZone({ receipt, onReceiptChange }) {
+export default function ReceiptUploadZone({
+  receipt,
+  onReceiptChange,
+  heading = 'Upload Receipt',
+  zoneTitle = 'Tap To Upload Receipt',
+  alertTitle = 'Upload receipt',
+}) {
   const applyAsset = useCallback(
     (asset) => {
       if (!asset?.uri) return;
@@ -115,10 +121,10 @@ export default function ReceiptUploadZone({ receipt, onReceiptChange }) {
         onPress: () => onReceiptChange(null),
       });
     }
-    Alert.alert('Upload receipt', 'Choose a source', buttons, {
+    Alert.alert(alertTitle, 'Choose a source', buttons, {
       cancelable: true,
     });
-  }, [pickPhoto, pickPdf, receipt, onReceiptChange]);
+  }, [pickPhoto, pickPdf, receipt, onReceiptChange, alertTitle]);
 
   const onPressZone = useCallback(() => {
     if (Platform.OS === 'web') {
@@ -130,15 +136,15 @@ export default function ReceiptUploadZone({ receipt, onReceiptChange }) {
 
   return (
     <View style={styles.section}>
-      <Text style={styles.heading}>Upload Receipt</Text>
+      <Text style={styles.heading}>{heading}</Text>
       <Pressable
         style={styles.zone}
         onPress={onPressZone}
         accessibilityRole="button"
-        accessibilityLabel="Tap to upload receipt"
+        accessibilityLabel={zoneTitle}
       >
         <Ionicons name="cloud-upload-outline" size={40} color={COLORS.primary} />
-        <Text style={styles.zoneTitle}>Tap To Upload Receipt</Text>
+        <Text style={styles.zoneTitle}>{zoneTitle}</Text>
         <Text style={styles.zoneHint}>JPG, PNG, PDF (Max 5MB)</Text>
         {receipt?.name ? (
           <Text style={styles.fileName} numberOfLines={1}>

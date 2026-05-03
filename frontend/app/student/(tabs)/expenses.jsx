@@ -222,9 +222,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.borderLight,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.white,
   },
   headerIcon: {
     marginRight: 10,

@@ -1,8 +1,27 @@
 import express from "express";
-import { upload } from "../utils/upload.js";
+import { upload, uploadBookingIdentity } from "../utils/upload.js";
 import { protect } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
+
+router.post(
+  "/booking-identity",
+  protect,
+  uploadBookingIdentity.single("identityDocument"),
+  (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
+    const fileUrl = `/uploads/booking-identity/${req.file.filename}`;
+    res.status(200).json({
+      message: "File uploaded successfully",
+      url: fileUrl,
+      filename: req.file.filename,
+      mimetype: req.file.mimetype,
+      size: req.file.size,
+    });
+  },
+);
 
 router.post("/receipt", protect, upload.single("receipt"), (req, res) => {
   if (!req.file) {

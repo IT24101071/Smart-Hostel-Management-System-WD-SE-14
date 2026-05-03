@@ -214,6 +214,183 @@ export async function sendBookingConfirmationEmail({
   await client.transactionalEmails.sendTransacEmail(payload);
 }
 
+function bookingSummaryLines(booking, room) {
+  const roomNumber = room?.roomNumber ?? "--";
+  const roomType = room?.roomType ?? "--";
+  return [
+    `Booking ID: ${booking?._id ?? "--"}`,
+    `Room: ${roomNumber} (${roomType})`,
+    `Check-in: ${fmtDate(booking?.checkInDate)}`,
+    `Check-out: ${fmtDate(booking?.checkOutDate)}`,
+    `Stay days: ${booking?.stayDays ?? "--"}`,
+    `Booking status: ${String(booking?.bookingStatus ?? "--").toUpperCase()}`,
+    `Payment status: ${String(booking?.paymentStatus ?? "--").toUpperCase()}`,
+  ];
+}
+
+/** Student cancelled their own confirmed booking (from app). */
+export async function sendBookingCancelledByStudentEmail({
+  toEmail,
+  studentName,
+  booking,
+  room,
+}) {
+  const { client, senderEmail, senderName } = getBrevoClient();
+  const subject = `${APP_NAME} — booking cancelled`;
+  const lines = bookingSummaryLines(booking, room);
+  const textContent = [
+    `Hi ${studentName || "Student"},`,
+    "",
+    "You cancelled your hostel booking. Summary:",
+    "",
+    ...lines,
+    "",
+    "If payment had completed, reversals are handled per hostel policy (typically within a few working days).",
+    "",
+    `— ${APP_NAME}`,
+  ].join("\n");
+
+  const htmlList = lines.map((l) => `<li>${l}</li>`).join("");
+  const htmlContent = `
+<!DOCTYPE html>
+<html>
+<body style="font-family: system-ui, sans-serif; line-height: 1.5; color: #111827;">
+  <p>Hi ${studentName || "Student"},</p>
+  <p>You cancelled your hostel booking. Summary:</p>
+  <ul>${htmlList}</ul>
+  <p style="color: #6B7280; font-size: 14px;">If payment had completed, reversals are handled per hostel policy.</p>
+  <p style="color: #9CA3AF; font-size: 12px;">— ${APP_NAME}</p>
+</body>
+</html>`;
+
+  await client.transactionalEmails.sendTransacEmail({
+    sender: { email: senderEmail, name: senderName },
+    to: [{ email: toEmail }],
+    subject,
+    textContent,
+    htmlContent,
+  });
+}
+
+/** Administrator cancelled the student's booking (admin-cancel API). */
+export async function sendBookingCancelledByAdminEmail({
+  toEmail,
+  studentName,
+  booking,
+  room,
+}) {
+  const { client, senderEmail, senderName } = getBrevoClient();
+  const subject = `${APP_NAME} — booking cancelled by administration`;
+  const lines = bookingSummaryLines(booking, room);
+  const textContent = [
+    `Hi ${studentName || "Student"},`,
+    "",
+    "Your hostel booking has been cancelled by an administrator. Details:",
+    "",
+    ...lines,
+    "",
+    "If you have questions or had completed a payment, please contact hostel support for refunds or next steps.",
+    "",
+    `— ${APP_NAME}`,
+  ].join("\n");
+
+  const htmlList = lines.map((l) => `<li>${l}</li>`).join("");
+  const htmlContent = `
+<!DOCTYPE html>
+<html>
+<body style="font-family: system-ui, sans-serif; line-height: 1.5; color: #111827;">
+  <p>Hi ${studentName || "Student"},</p>
+  <p>Your hostel booking has been <strong>cancelled by an administrator</strong>. Details:</p>
+  <ul>${htmlList}</ul>
+  <p style="color: #6B7280; font-size: 14px;">If you have questions or completed a payment, please contact hostel support.</p>
+  <p style="color: #9CA3AF; font-size: 12px;">— ${APP_NAME}</p>
+</body>
+</html>`;
+
+  await client.transactionalEmails.sendTransacEmail({
+    sender: { email: senderEmail, name: senderName },
+    to: [{ email: toEmail }],
+    subject,
+    textContent,
+    htmlContent,
+  });
+}
+
+/** Student extended or updated stay dates (extendBooking). */
+export async function sendBookingAmendedEmail({
+  toEmail,
+  studentName,
+  booking,
+  room,
+  previousCheckIn,
+  previousCheckOut,
+  extraDays,
+  additionalRoomFees,
+}) {
+  const { client, senderEmail, senderName } = getBrevoClient();
+  const extended = Number(extraDays) > 0;
+  const subject = extended
+    ? `${APP_NAME} — stay extended`
+    : `${APP_NAME} — booking dates updated`;
+
+  const lines = bookingSummaryLines(booking, room);
+  const prevLines = [
+    `Previous check-in: ${fmtDate(previousCheckIn)}`,
+    `Previous check-out: ${fmtDate(previousCheckOut)}`,
+  ];
+  const feeLine =
+    extended && Number(additionalRoomFees) > 0
+      ? `Additional room fees: ${fmtMoney(additionalRoomFees)}`
+      : null;
+
+  const textContent = [
+    `Hi ${studentName || "Student"},`,
+    "",
+    extended
+      ? "Your stay has been extended. Updated details:"
+      : "Your stay dates were updated. Details:",
+    "",
+    ...prevLines,
+    "",
+    "New dates:",
+    ...lines,
+    "",
+    feeLine,
+    extended ? `Additional nights: ${extraDays}` : "",
+    "",
+    `— ${APP_NAME}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const htmlList = lines.map((l) => `<li>${l}</li>`).join("");
+  const htmlContent = `
+<!DOCTYPE html>
+<html>
+<body style="font-family: system-ui, sans-serif; line-height: 1.5; color: #111827;">
+  <p>Hi ${studentName || "Student"},</p>
+  <p>${extended ? "Your stay has been <strong>extended</strong>. Here are your updated details:" : "Your <strong>stay dates</strong> were updated."}</p>
+  <p style="color:#374151;font-size:14px;"><strong>Previous:</strong> ${fmtDate(previousCheckIn)} → ${fmtDate(previousCheckOut)}</p>
+  <ul>${htmlList}</ul>
+  ${
+    feeLine
+      ? `<p style="color:#111827;"><strong>${feeLine}</strong></p>`
+      : ""
+  }
+  ${extended ? `<p>Additional nights: ${extraDays}</p>` : ""}
+  <p style="color: #9CA3AF; font-size: 12px;">— ${APP_NAME}</p>
+</body>
+</html>`;
+
+  await client.transactionalEmails.sendTransacEmail({
+    sender: { email: senderEmail, name: senderName },
+    to: [{ email: toEmail }],
+    subject,
+    textContent,
+    htmlContent,
+  });
+}
+
 export async function sendOperationalAccountInvitationEmail({
   toEmail,
   name,

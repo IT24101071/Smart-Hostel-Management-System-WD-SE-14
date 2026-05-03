@@ -5,7 +5,9 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -16,10 +18,17 @@ import {
   TextInput,
   View,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AdminSubHeader from "../../components/admin/AdminSubHeader";
 import { COLORS } from "../../constants/colors";
 import apiClient from "../../lib/axios";
+import { validateNicInput } from "../../lib/nicValidation";
+import {
+  createWarden,
+  getAdminErrorMessage,
+  updateWarden,
+} from "../../services/admin.service";
 
 const TABS = [
   { key: "list", label: "Wardens" },
@@ -55,13 +64,16 @@ export default function WardenManagement() {
   const [modalUser, setModalUser] = useState(null);
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({});
+  const [editNicPhotoPick, setEditNicPhotoPick] = useState(null);
   const [saving, setSaving] = useState(false);
 
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     password: "",
+    nicNumber: "",
   });
+  const [addNicPhotoPick, setAddNicPhotoPick] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
   const fetchWardens = useCallback(async () => {
@@ -101,13 +113,58 @@ export default function WardenManagement() {
       name: user.name ?? "",
       email: user.email ?? "",
       password: "",
+      nicNumber: user.nicNumber ?? "",
     });
+    setEditNicPhotoPick(null);
   };
 
   const closeModal = () => {
     setModalUser(null);
     setEditing(false);
     setEditForm({});
+    setEditNicPhotoPick(null);
+  };
+
+  const pickAddNicPhoto = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert("Permission", "Allow photo library access to attach a NIC photo.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.85,
+    });
+    if (!result.canceled && result.assets?.[0]) {
+      const a = result.assets[0];
+      setAddNicPhotoPick({
+        uri: a.uri,
+        type: a.mimeType || "image/jpeg",
+        name: a.fileName || "nic.jpg",
+      });
+    }
+  };
+
+  const pickEditNicPhoto = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert("Permission", "Allow photo library access to attach a NIC photo.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.85,
+    });
+    if (!result.canceled && result.assets?.[0]) {
+      const a = result.assets[0];
+      setEditNicPhotoPick({
+        uri: a.uri,
+        type: a.mimeType || "image/jpeg",
+        name: a.fileName || "nic.jpg",
+      });
+    }
   };
 
   const handleDelete = (user, label) => {
@@ -159,32 +216,31 @@ export default function WardenManagement() {
       return;
     }
 
+    const nicCheck = validateNicInput(editForm.nicNumber);
+    if (!nicCheck.ok) {
+      Alert.alert("Validation", nicCheck.message);
+      return;
+    }
+
     setSaving(true);
     try {
-      const payload = {
+      const updated = await updateWarden(recordId, {
         name: editForm.name.trim(),
         email: editForm.email.trim(),
-      };
-      if (editForm.password?.trim()) {
-        payload.password = editForm.password.trim();
-      }
-      const { data } = await apiClient.patch(
-        `/auth/users/${encodeURIComponent(recordId)}`,
-        payload,
-      );
-      const updated = data.user || data;
+        password: editForm.password?.trim() || undefined,
+        nicNumber: editForm.nicNumber?.trim(),
+        nicPhoto: editNicPhotoPick || undefined,
+      });
       Alert.alert("Success", "Warden updated");
       setModalUser({
         ...updated,
         _id: getUserRecordId(updated) ?? recordId,
       });
+      setEditNicPhotoPick(null);
       setEditing(false);
       await fetchWardens();
     } catch (e) {
-      Alert.alert(
-        "Error",
-        e?.response?.data?.message || "Failed to update warden",
-      );
+      Alert.alert("Error", getAdminErrorMessage(e));
     } finally {
       setSaving(false);
     }
@@ -203,23 +259,28 @@ export default function WardenManagement() {
       Alert.alert("Error", "Password must be at least 6 characters");
       return;
     }
+    const nicCheck = validateNicInput(formData.nicNumber);
+    if (!nicCheck.ok) {
+      Alert.alert("Validation", nicCheck.message);
+      return;
+    }
 
     setSubmitting(true);
     try {
-      await apiClient.post("/auth/create-warden", {
+      await createWarden({
         name: formData.name.trim(),
         email: formData.email.trim(),
         password: formData.password,
+        nicNumber: formData.nicNumber.trim(),
+        nicPhoto: addNicPhotoPick || undefined,
       });
       Alert.alert("Success", "Warden account created");
-      setFormData({ name: "", email: "", password: "" });
+      setFormData({ name: "", email: "", password: "", nicNumber: "" });
+      setAddNicPhotoPick(null);
       setTab("list");
       await fetchWardens();
     } catch (e) {
-      Alert.alert(
-        "Error",
-        e?.response?.data?.message || "Failed to create warden",
-      );
+      Alert.alert("Error", getAdminErrorMessage(e));
     } finally {
       setSubmitting(false);
     }
@@ -236,6 +297,7 @@ export default function WardenManagement() {
       <View style={styles.wardenInfo}>
         <Text style={styles.wardenName}>{item.name}</Text>
         <Text style={styles.wardenEmail}>{item.email}</Text>
+        <Text style={styles.wardenNic}>NIC: {item.nicNumber ?? "—"}</Text>
         <Text style={styles.wardenMeta}>Warden</Text>
       </View>
       <Ionicons name="chevron-forward" size={20} color={COLORS.textMuted} />
@@ -298,11 +360,45 @@ export default function WardenManagement() {
                     secureTextEntry
                     placeholder="Leave blank to keep current"
                   />
+                  <FieldEdit
+                    label="NIC number"
+                    value={editForm.nicNumber}
+                    onChangeText={(t) =>
+                      setEditForm((f) => ({ ...f, nicNumber: t }))
+                    }
+                    autoCapitalize="characters"
+                    placeholder="12 digits or 9 digits + V/X"
+                  />
+                  <Pressable style={styles.nicPhotoBtn} onPress={pickEditNicPhoto}>
+                    <Ionicons name="camera-outline" size={20} color={COLORS.primary} />
+                    <Text style={styles.nicPhotoBtnText}>
+                      {editNicPhotoPick
+                        ? "Replace NIC photo"
+                        : "Optional: new NIC photo"}
+                    </Text>
+                  </Pressable>
+                  {editNicPhotoPick ? (
+                    <Image
+                      source={{ uri: editNicPhotoPick.uri }}
+                      style={styles.nicThumb}
+                      resizeMode="cover"
+                    />
+                  ) : null}
                 </>
               ) : (
                 <>
                   <DetailRow label="Name" value={modalUser.name} />
                   <DetailRow label="Email" value={modalUser.email} />
+                  <DetailRow label="NIC" value={modalUser.nicNumber} />
+                  {modalUser.nicPhoto ? (
+                    <Pressable
+                      onPress={() => Linking.openURL(modalUser.nicPhoto)}
+                      style={styles.nicLinkRow}
+                    >
+                      <Text style={styles.nicLinkText}>Open NIC photo</Text>
+                      <Ionicons name="open-outline" size={18} color={COLORS.primary} />
+                    </Pressable>
+                  ) : null}
                   <DetailRow label="Role" value="Warden" />
                   <DetailRow
                     label="Status"
@@ -488,6 +584,32 @@ export default function WardenManagement() {
                 secureTextEntry
               />
             </View>
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>NIC number</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="12 digits (new) or 9 digits + V/X"
+                placeholderTextColor={COLORS.textMuted}
+                value={formData.nicNumber}
+                onChangeText={(text) =>
+                  setFormData((f) => ({ ...f, nicNumber: text }))
+                }
+                autoCapitalize="characters"
+              />
+            </View>
+            <Pressable style={styles.nicPhotoBtn} onPress={pickAddNicPhoto}>
+              <Ionicons name="image-outline" size={20} color={COLORS.primary} />
+              <Text style={styles.nicPhotoBtnText}>
+                {addNicPhotoPick ? "NIC photo selected" : "Optional: NIC photo"}
+              </Text>
+            </Pressable>
+            {addNicPhotoPick ? (
+              <Image
+                source={{ uri: addNicPhotoPick.uri }}
+                style={styles.nicThumbAdd}
+                resizeMode="cover"
+              />
+            ) : null}
             <Pressable
               style={[
                 styles.submitButton,
@@ -632,6 +754,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: COLORS.textMuted,
   },
+  wardenNic: {
+    fontFamily: "PublicSans_500Medium",
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: 2,
+  },
   wardenMeta: {
     fontFamily: "PublicSans_500Medium",
     fontSize: 11,
@@ -713,6 +841,44 @@ const styles = StyleSheet.create({
     fontFamily: "PublicSans_600SemiBold",
     fontSize: 15,
     color: COLORS.white,
+  },
+  nicPhotoBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 10,
+    marginBottom: 8,
+  },
+  nicPhotoBtnText: {
+    fontFamily: "PublicSans_500Medium",
+    fontSize: 14,
+    color: COLORS.primary,
+  },
+  nicThumb: {
+    width: "100%",
+    height: 140,
+    borderRadius: 10,
+    marginBottom: 12,
+    resizeMode: "cover",
+  },
+  nicThumbAdd: {
+    width: "100%",
+    height: 160,
+    borderRadius: 12,
+    marginBottom: 12,
+    resizeMode: "cover",
+  },
+  nicLinkRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 10,
+    marginBottom: 12,
+  },
+  nicLinkText: {
+    fontFamily: "PublicSans_600SemiBold",
+    fontSize: 14,
+    color: COLORS.primary,
   },
   modalOverlay: {
     flex: 1,

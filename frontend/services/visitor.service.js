@@ -132,9 +132,8 @@ export async function getRoomStudents(roomNumber) {
   const list = Array.isArray(data?.data) ? data.data : [];
   return list
     .map((item) => ({
+      ...item,
       id: item?.id ?? item?._id,
-      name: item?.name ?? "",
-      studentId: item?.studentId ?? "",
       roomNumber: item?.roomNumber ?? normalizedRoom,
     }))
     .filter((item) => Boolean(item.id));

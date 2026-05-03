@@ -2,11 +2,17 @@ import Booking from "../models/Booking.js";
 import Notification from "../models/Notification.js";
 import Room from "../models/Room.js";
 import User from "../models/User.js";
-import { sendBookingConfirmationEmail } from "../utils/brevoEmail.js";
+import {
+  sendBookingAmendedEmail,
+  sendBookingCancelledByAdminEmail,
+  sendBookingCancelledByStudentEmail,
+  sendBookingConfirmationEmail,
+} from "../utils/brevoEmail.js";
 import {
   buildBookingReceiptPdfBase64,
   buildBookingReceiptText,
 } from "../utils/bookingReceipt.js";
+import { validateBookingIdentity } from "../utils/identityDocumentValidation.js";
 
 /** Matches [frontend/app/student/(tabs)/booking.jsx](first-time booking flow). */
 const FIRST_BOOKING_SECURITY_DEPOSIT_LKR = 1000;
@@ -64,6 +70,9 @@ function toBookingDto(booking) {
     receiptAvailable: booking.paymentStatus === "completed",
     receiptFileName: `booking-receipt-${booking._id}.pdf`,
     receiptUploaded: Boolean(booking.receipt?.uri),
+    identityDocumentType: booking.identityDocumentType,
+    identityDocumentNumber: booking.identityDocumentNumber,
+    identityDocumentImageUrl: booking.identityDocumentImageUrl,
     createdAt: booking.createdAt,
   };
 }
@@ -88,6 +97,9 @@ export const createBooking = async (req, res) => {
       paymentMethod,
       receipt,
       cardMasked,
+      identityDocumentType,
+      identityDocumentNumber,
+      identityDocumentImageUrl,
     } = req.body ?? {};
 
     if (!roomId) return res.status(400).json({ message: "roomId is required" });
@@ -182,6 +194,21 @@ export const createBooking = async (req, res) => {
         .json({ message: "Receipt is required for bank deposits" });
     }
 
+    const idImageUrl = String(identityDocumentImageUrl ?? "").trim();
+    if (!idImageUrl) {
+      return res.status(400).json({
+        message:
+          "Identity document image is required. Upload a photo of your NIC or passport.",
+      });
+    }
+    const idCheck = validateBookingIdentity({
+      type: identityDocumentType,
+      number: identityDocumentNumber,
+    });
+    if (!idCheck.ok) {
+      return res.status(400).json({ message: idCheck.message });
+    }
+
     const nextOccupancy = Number(room.currentOccupancy) + 1;
     if (nextOccupancy > Number(room.capacity)) {
       return res
@@ -216,6 +243,11 @@ export const createBooking = async (req, res) => {
           : undefined,
       cardMasked:
         paymentMethod === "card" ? String(cardMasked ?? "").trim() : undefined,
+      identityDocumentType: String(identityDocumentType ?? "")
+        .trim()
+        .toLowerCase(),
+      identityDocumentNumber: idCheck.normalizedNumber,
+      identityDocumentImageUrl: idImageUrl,
     });
 
     room.currentOccupancy = nextOccupancy;
@@ -382,7 +414,9 @@ export const cancelBooking = async (req, res) => {
     const booking = await Booking.findOne({
       _id: req.params.id,
       student: req.user.id,
-    }).populate("room");
+    })
+      .populate("room")
+      .populate("student", "name email");
     if (!booking) {
       return res.status(404).json({ message: "Booking not found" });
     }
@@ -420,9 +454,10 @@ export const cancelBooking = async (req, res) => {
       await room.save();
     }
 
+    const cancelStudentId = booking.student?._id ?? booking.student;
     await Notification.create({
-      recipient: booking.student,
-      actor: booking.student,
+      recipient: cancelStudentId,
+      actor: cancelStudentId,
       type: "booking_confirmed",
       title: "Booking cancelled",
       message:
@@ -436,10 +471,109 @@ export const cancelBooking = async (req, res) => {
       },
     });
 
+    const studentEmail = booking.student?.email;
+    const studentName = booking.student?.name;
+    if (studentEmail) {
+      try {
+        await sendBookingCancelledByStudentEmail({
+          toEmail: studentEmail,
+          studentName,
+          booking,
+          room: booking.room,
+        });
+      } catch (emailErr) {
+        console.error("[cancelBooking] Email failed:", emailErr);
+      }
+    }
+
     return res.status(200).json({
       message:
         "Booking cancelled successfully. Payment will be reversed within 2 working days.",
       booking: toBookingDto(booking),
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+export const adminCancelBooking = async (req, res) => {
+  try {
+    const booking = await Booking.findById(req.params.id)
+      .populate("room")
+      .populate("student", "name email");
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+    if (booking.bookingStatus === "cancelled") {
+      return res.status(400).json({ message: "This booking is already cancelled" });
+    }
+
+    const checkInDay = new Date(booking.checkInDate);
+    checkInDay.setHours(0, 0, 0, 0);
+    const today = startOfToday();
+    if (checkInDay.getTime() <= today.getTime()) {
+      return res.status(400).json({
+        message:
+          "Admin can only cancel bookings whose check-in date is after today.",
+      });
+    }
+
+    booking.bookingStatus = "cancelled";
+    if (booking.paymentStatus === "completed") {
+      booking.paymentStatus = "failed";
+    }
+    await booking.save();
+
+    const room = await Room.findById(booking.room?._id ?? booking.room);
+    if (room) {
+      room.currentOccupancy = Math.max(0, Number(room.currentOccupancy) - 1);
+      room.availabilityStatus = recalculateAvailability({
+        currentOccupancy: room.currentOccupancy,
+        capacity: room.capacity,
+        status: room.availabilityStatus,
+      });
+      await room.save();
+    }
+
+    const studentId = booking.student?._id ?? booking.student;
+    if (studentId) {
+      await Notification.create({
+        recipient: studentId,
+        actor: req.user.id,
+        type: "booking_cancelled",
+        title: "Booking cancelled by admin",
+        message:
+          "Your hostel booking was cancelled by an administrator. If a payment was made, support will follow up regarding any refund per policy.",
+        booking: booking._id,
+        read: false,
+        meta: {
+          roomId: booking.room?._id ?? booking.room,
+          checkInDate: booking.checkInDate,
+          checkOutDate: booking.checkOutDate,
+          cancelledByAdmin: true,
+        },
+      });
+    }
+
+    const adminCancelStudentEmail = booking.student?.email;
+    const adminCancelStudentName = booking.student?.name;
+    if (adminCancelStudentEmail) {
+      try {
+        await sendBookingCancelledByAdminEmail({
+          toEmail: adminCancelStudentEmail,
+          studentName: adminCancelStudentName,
+          booking,
+          room: booking.room,
+        });
+      } catch (emailErr) {
+        console.error("[adminCancelBooking] Email failed:", emailErr);
+      }
+    }
+
+    const refreshed = await Booking.findById(booking._id).populate("room");
+    return res.status(200).json({
+      message: "Booking cancelled successfully.",
+      booking: toBookingDto(refreshed ?? booking),
     });
   } catch (error) {
     return res.status(500).json({ message: error.message });
@@ -457,7 +591,9 @@ export const extendBooking = async (req, res) => {
     const booking = await Booking.findOne({
       _id: req.params.id,
       student: req.user.id,
-    }).populate("room");
+    })
+      .populate("room")
+      .populate("student", "name email");
     if (!booking) {
       return res.status(404).json({ message: "Booking not found" });
     }
@@ -545,6 +681,9 @@ export const extendBooking = async (req, res) => {
         paymentMethod === "card" ? String(cardMasked ?? "").trim() : undefined;
     }
 
+    const previousCheckIn = booking.checkInDate;
+    const previousCheckOut = booking.checkOutDate;
+
     booking.checkInDate = nextCheckIn;
     booking.checkOutDate = nextCheckOut;
     booking.stayDays = editedDays;
@@ -553,9 +692,10 @@ export const extendBooking = async (req, res) => {
     booking.amountPaidByBooker = Number(booking.amountPaidByBooker ?? 0) + additionalRoomFees;
     await booking.save();
 
+    const extendStudentId = booking.student?._id ?? booking.student;
     await Notification.create({
-      recipient: booking.student,
-      actor: booking.student,
+      recipient: extendStudentId,
+      actor: extendStudentId,
       type: "booking_confirmed",
       title: extraDays > 0 ? "Stay extended" : "Stay updated",
       message:
@@ -572,6 +712,25 @@ export const extendBooking = async (req, res) => {
         checkOutDate: booking.checkOutDate,
       },
     });
+
+    const amendEmail = booking.student?.email;
+    const amendName = booking.student?.name;
+    if (amendEmail) {
+      try {
+        await sendBookingAmendedEmail({
+          toEmail: amendEmail,
+          studentName: amendName,
+          booking,
+          room: booking.room,
+          previousCheckIn,
+          previousCheckOut,
+          extraDays,
+          additionalRoomFees,
+        });
+      } catch (emailErr) {
+        console.error("[extendBooking] Email failed:", emailErr);
+      }
+    }
 
     return res.status(200).json({
       message: "Booking extended successfully",

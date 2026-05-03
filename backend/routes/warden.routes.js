@@ -11,6 +11,7 @@ import {
   deleteStaff,
 } from "../controllers/wardenController.js";
 import { protect, wardenOrAdmin } from "../middleware/auth.middleware.js";
+import { optionalNicPhotoFields } from "../middleware/r2.middleware.js";
 
 const router = express.Router();
 
@@ -20,8 +21,8 @@ router.get("/stats", getWardenStats);
 router.get("/search", searchStaff);
 router.get("/students", getStudentList);
 router.get("/staff", getStaffList);
-router.post("/staff", createStaff);
-router.patch("/staff/:id", updateStaff);
+router.post("/staff", optionalNicPhotoFields, createStaff);
+router.patch("/staff/:id", optionalNicPhotoFields, updateStaff);
 router.patch("/staff/:id/status", toggleStaffStatus);
 router.delete("/staff/:id", deleteStaff);
 router.delete("/user/:id", deleteUser);

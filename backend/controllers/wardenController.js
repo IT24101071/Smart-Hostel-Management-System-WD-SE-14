@@ -2,6 +2,8 @@ import mongoose from "mongoose";
 import User from "../models/User.js";
 import bcrypt from "bcryptjs";
 import { sendOperationalAccountInvitationEmail } from "../utils/brevoEmail.js";
+import { uploadBufferToR2 } from "../utils/r2Upload.js";
+import { parseNic } from "../utils/nicValidation.js";
 
 const STAFF_ROLE = "staff";
 const STUDENT_ROLE = "student";
@@ -189,6 +191,7 @@ export const createStaff = async (req, res) => {
         const name = String(req.body?.name ?? "").trim();
         const email = normalizeEmail(req.body?.email);
         const password = String(req.body?.password ?? "");
+        const nicNumberRaw = req.body?.nicNumber;
 
         if (!name || !email || !password) {
             return res.status(400).json({
@@ -201,9 +204,29 @@ export const createStaff = async (req, res) => {
             });
         }
 
+        const nicParsed = parseNic(nicNumberRaw);
+        if (!nicParsed.ok) {
+            return res.status(400).json({ message: nicParsed.message });
+        }
+
         const existing = await User.findOne({ email });
         if (existing) {
             return res.status(400).json({ message: "Email already registered" });
+        }
+
+        const nicTaken = await User.findOne({ nicNumber: nicParsed.normalized });
+        if (nicTaken) {
+            return res.status(400).json({ message: "This NIC is already registered" });
+        }
+
+        let nicPhotoUrl;
+        const nicFile = req.files?.nicPhoto?.[0];
+        if (nicFile?.buffer) {
+            nicPhotoUrl = await uploadBufferToR2(
+                nicFile.buffer,
+                nicFile.originalname,
+                nicFile.mimetype,
+            );
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
@@ -217,6 +240,8 @@ export const createStaff = async (req, res) => {
             mustChangePasswordOnFirstLogin: true,
             invitedByRole: actorRole,
             invitedBy: req.user?.id ?? req.user?._id,
+            nicNumber: nicParsed.normalized,
+            ...(nicPhotoUrl ? { nicPhoto: nicPhotoUrl } : {}),
         });
 
         try {
@@ -254,6 +279,7 @@ export const updateStaff = async (req, res) => {
         const name = req.body?.name;
         const email = req.body?.email;
         const password = req.body?.password;
+        const nicNumberRaw = req.body?.nicNumber;
 
         if (name !== undefined) {
             const nextName = String(name).trim();
@@ -271,6 +297,30 @@ export const updateStaff = async (req, res) => {
                 }
                 target.email = nextEmail;
             }
+        }
+
+        if (nicNumberRaw !== undefined && nicNumberRaw !== null && nicNumberRaw !== "") {
+            const parsed = parseNic(nicNumberRaw);
+            if (!parsed.ok) {
+                return res.status(400).json({ message: parsed.message });
+            }
+            const dup = await User.findOne({
+                nicNumber: parsed.normalized,
+                _id: { $ne: target._id },
+            });
+            if (dup) {
+                return res.status(400).json({ message: "This NIC is already registered" });
+            }
+            target.nicNumber = parsed.normalized;
+        }
+
+        const nicFile = req.files?.nicPhoto?.[0];
+        if (nicFile?.buffer) {
+            target.nicPhoto = await uploadBufferToR2(
+                nicFile.buffer,
+                nicFile.originalname,
+                nicFile.mimetype,
+            );
         }
 
         if (password !== undefined) {

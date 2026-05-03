@@ -51,6 +51,13 @@ const bookingSchema = new mongoose.Schema(
       default: undefined,
     },
     cardMasked: { type: String, trim: true, default: undefined },
+
+    identityDocumentType: {
+      type: String,
+      enum: ["nic", "passport"],
+    },
+    identityDocumentNumber: { type: String, trim: true },
+    identityDocumentImageUrl: { type: String, trim: true },
   },
   { timestamps: true },
 );

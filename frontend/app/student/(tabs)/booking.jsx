@@ -466,6 +466,13 @@ export default function StudentBookingScreen() {
           <LegalAgreementCard agreed={agreed} onToggle={() => setAgreed((v) => !v)} />
         </View>
 
+        {!manageMode && room ? (
+          <Text style={styles.paymentNextHint}>
+            On the next screen you will enter your Sri Lanka NIC or passport details and
+            complete payment.
+          </Text>
+        ) : null}
+
         <View style={styles.section}>
           <View style={styles.bottomInline}>
             <BookingBottomBar
@@ -517,6 +524,13 @@ const styles = StyleSheet.create({
   },
   section: {
     marginTop: 2,
+  },
+  paymentNextHint: {
+    fontFamily: 'PublicSans_400Regular',
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    paddingHorizontal: 4,
+    lineHeight: 20,
   },
   centered: {
     alignItems: 'center',

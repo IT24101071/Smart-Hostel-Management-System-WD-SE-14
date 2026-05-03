@@ -8,6 +8,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,10 +25,12 @@ import {
   DEFAULT_SECURITY_DEPOSIT_LKR,
   PAYMENT_PAGE_BG,
 } from '../../constants/paymentBank';
+import { validateBookingIdentityInput } from '../../lib/identityDocumentValidation';
 import {
   createBooking,
   extendBooking,
   getBookingErrorMessage,
+  uploadBookingIdentity,
   uploadReceipt,
 } from '../../services/booking.service';
 import { getRoomById, getRoomErrorMessage } from '../../services/room.service';
@@ -91,6 +94,9 @@ export default function StudentPaymentScreen() {
   const [cvc, setCvc] = useState('');
   const [receipt, setReceipt] = useState(null);
   const [isPaying, setIsPaying] = useState(false);
+  const [idType, setIdType] = useState('nic');
+  const [idNumber, setIdNumber] = useState('');
+  const [identityDoc, setIdentityDoc] = useState(null);
 
   useEffect(() => {
     if (!roomIdValue) {
@@ -167,8 +173,17 @@ export default function StudentPaymentScreen() {
 
   const bankPayReady = Boolean(receipt?.uri);
 
+  const identityReady = useMemo(() => {
+    if (isExtensionPayment) return true;
+    const v = validateBookingIdentityInput(idType, idNumber);
+    if (!v.ok) return false;
+    return Boolean(identityDoc?.uri);
+  }, [isExtensionPayment, idType, idNumber, identityDoc]);
+
   const payDisabled =
-    isPaying || (method === 'card' ? !cardPayReady : !bankPayReady);
+    isPaying ||
+    !identityReady ||
+    (method === 'card' ? !cardPayReady : !bankPayReady);
 
   const handleBack = useCallback(() => {
     if (router.canGoBack()) router.back();
@@ -195,6 +210,27 @@ export default function StudentPaymentScreen() {
         }
       }
 
+      let identityDocumentType;
+      let identityDocumentNumber;
+      let identityDocumentImageUrl;
+      if (!isExtensionPayment) {
+        const idVal = validateBookingIdentityInput(idType, idNumber);
+        if (!idVal.ok) {
+          throw new Error(idVal.message);
+        }
+        if (!identityDoc?.uri) {
+          throw new Error('Please upload a photo or PDF of your NIC or passport.');
+        }
+        try {
+          const idUp = await uploadBookingIdentity(identityDoc.uri, identityDoc.name);
+          identityDocumentType = idType;
+          identityDocumentNumber = idNumber.trim();
+          identityDocumentImageUrl = idUp.url;
+        } catch {
+          throw new Error('Failed to upload identity document. Please try again.');
+        }
+      }
+
       const payload = {
         roomId: roomIdValue,
         checkInDate: bookingParams.checkInDate,
@@ -213,6 +249,13 @@ export default function StudentPaymentScreen() {
                 return digits ? `**** **** **** ${digits.slice(-4)}` : undefined;
               })()
             : undefined,
+        ...(isExtensionPayment
+          ? {}
+          : {
+              identityDocumentType,
+              identityDocumentNumber,
+              identityDocumentImageUrl,
+            }),
       };
       if (isExtensionPayment) {
         if (!bookingParams.bookingId) {
@@ -238,7 +281,9 @@ export default function StudentPaymentScreen() {
       );
     } catch (e) {
       setIsPaying(false);
-      Alert.alert('Payment failed', getBookingErrorMessage(e));
+      const fallback =
+        e instanceof Error && e.message ? e.message : getBookingErrorMessage(e);
+      Alert.alert('Payment failed', fallback);
     }
   }, [
     payDisabled,
@@ -256,6 +301,9 @@ export default function StudentPaymentScreen() {
     receipt,
     cardNumber,
     router,
+    idType,
+    idNumber,
+    identityDoc,
   ]);
 
   const onExpiryChange = useCallback((text) => {
@@ -324,6 +372,65 @@ export default function StudentPaymentScreen() {
             roomFees={roomFees}
             payableNow={payNowAmount}
           />
+          {!isExtensionPayment ? (
+            <View style={styles.panel}>
+              <Text style={styles.identityTitle}>Identity verification</Text>
+              <Text style={styles.identityHint}>
+                Enter your document number and upload a clear image or PDF (max 5 MB).
+              </Text>
+              <View style={styles.idTypeRow}>
+                <Pressable
+                  style={[styles.idTypeBtn, idType === 'nic' && styles.idTypeBtnActive]}
+                  onPress={() => setIdType('nic')}
+                >
+                  <Text
+                    style={[
+                      styles.idTypeBtnText,
+                      idType === 'nic' && styles.idTypeBtnTextActive,
+                    ]}
+                  >
+                    Sri Lanka NIC
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={[
+                    styles.idTypeBtn,
+                    idType === 'passport' && styles.idTypeBtnActive,
+                  ]}
+                  onPress={() => setIdType('passport')}
+                >
+                  <Text
+                    style={[
+                      styles.idTypeBtnText,
+                      idType === 'passport' && styles.idTypeBtnTextActive,
+                    ]}
+                  >
+                    Passport
+                  </Text>
+                </Pressable>
+              </View>
+              <TextInput
+                style={styles.idInput}
+                value={idNumber}
+                onChangeText={setIdNumber}
+                placeholder={
+                  idType === 'nic'
+                    ? '12 digits (new) or 9 digits + V/X (old)'
+                    : 'Passport number (6–20 characters)'
+                }
+                placeholderTextColor={COLORS.textMuted}
+                autoCapitalize="characters"
+                autoCorrect={false}
+              />
+              <ReceiptUploadZone
+                receipt={identityDoc}
+                onReceiptChange={setIdentityDoc}
+                heading="NIC or passport document"
+                zoneTitle="Upload NIC or passport"
+                alertTitle="Upload identity document"
+              />
+            </View>
+          ) : null}
           <PaymentMethodTabs value={method} onChange={setMethod} />
           <View style={styles.panel}>
             {method === 'card' ? (
@@ -404,6 +511,56 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     padding: 16,
     marginBottom: 16,
+  },
+  identityTitle: {
+    fontFamily: 'PublicSans_700Bold',
+    fontSize: 16,
+    color: COLORS.textPrimary,
+    marginBottom: 6,
+  },
+  identityHint: {
+    fontFamily: 'PublicSans_400Regular',
+    fontSize: 13,
+    color: COLORS.textMuted,
+    marginBottom: 14,
+  },
+  idTypeRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 12,
+  },
+  idTypeBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    backgroundColor: COLORS.inputBg,
+  },
+  idTypeBtnActive: {
+    borderColor: COLORS.primary,
+    backgroundColor: 'rgba(37, 99, 235, 0.08)',
+  },
+  idTypeBtnText: {
+    fontFamily: 'PublicSans_600SemiBold',
+    fontSize: 13,
+    color: COLORS.textSecondary,
+  },
+  idTypeBtnTextActive: {
+    color: COLORS.primary,
+  },
+  idInput: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    fontFamily: 'PublicSans_400Regular',
+    fontSize: 15,
+    color: COLORS.textPrimary,
+    backgroundColor: COLORS.inputBg,
+    marginBottom: 8,
   },
   payBtn: {
     flexDirection: 'row',
