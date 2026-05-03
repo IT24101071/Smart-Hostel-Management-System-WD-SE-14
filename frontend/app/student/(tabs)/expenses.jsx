@@ -2,7 +2,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View, Image, Modal, TouchableOpacity, Linking } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../../constants/colors';
 import { getMyBookings } from '../../../services/booking.service';
 import { API_BASE_URL } from '../../../constants/api';
@@ -70,20 +69,17 @@ export default function StudentExpensesScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.safeOuter} edges={['top']}>
-        <View style={styles.safeInner}>
-          <View style={styles.center}>
-            <ActivityIndicator size="large" color={COLORS.primary} />
-            <Text style={styles.loadingText}>Loading expenses...</Text>
-          </View>
+      <View style={styles.safe}>
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+          <Text style={styles.loadingText}>Loading expenses...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safeOuter} edges={['top']}>
-      <View style={styles.safeInner}>
+    <View style={styles.safe}>
       <View style={styles.header}>
         <Ionicons name="wallet-outline" size={32} color={COLORS.primary} style={styles.headerIcon} />
         <Text style={styles.title}>My Expenses</Text>
@@ -202,17 +198,12 @@ export default function StudentExpensesScreen() {
           </View>
         </View>
       </Modal>
-      </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeOuter: {
-    flex: 1,
-    backgroundColor: COLORS.white,
-  },
-  safeInner: {
+  safe: {
     flex: 1,
     backgroundColor: COLORS.studentScreenBackground,
   },

@@ -1,20 +1,26 @@
-import { Image } from 'expo-image';
+import { useAssets } from 'expo-asset';
+import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { SvgUri } from 'react-native-svg';
 import { LANDING } from './landingTheme';
 
-const mapSource = require('../../assets/images/landing-map.svg');
-
 export default function LandingMapSection() {
+  const [assets] = useAssets([require('../../assets/images/landing-map.svg')]);
+  const [cardWidth, setCardWidth] = useState(0);
+  const uri = assets?.[0]?.localUri ?? null;
+
   return (
     <View style={styles.section}>
       <Text style={styles.heading}>Find Your Way</Text>
-      <View style={styles.card}>
-        <Image
-          source={mapSource}
-          style={styles.map}
-          contentFit="contain"
-          transition={200}
-        />
+      <View style={styles.card} onLayout={(e) => setCardWidth(e.nativeEvent.layout.width)}>
+        {uri && cardWidth > 0 && (
+          <SvgUri
+            uri={uri}
+            width={cardWidth}
+            height={220}
+            preserveAspectRatio="xMidYMid meet"
+          />
+        )}
       </View>
     </View>
   );
@@ -36,9 +42,5 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     overflow: 'hidden',
     minHeight: 200,
-  },
-  map: {
-    width: '100%',
-    height: 220,
   },
 });

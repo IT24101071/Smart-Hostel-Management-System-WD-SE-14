@@ -19,8 +19,7 @@ import {
 
 const STAFF_ROLES = ["admin", "warden"];
 const MANAGER_ROLES = ["admin", "warden"];
-const STAFF_WORKER_ROLE = "staff";
-const ASSIGNEE_ROLES = ["staff"];
+const ASSIGNEE_ROLES = ["admin", "warden", "staff"];
 const ALLOWED_TRANSITIONS = {
   Open: ["In Progress"],
   "In Progress": ["Resolved"],
@@ -45,10 +44,6 @@ function sanitizeText(value) {
 
 function isManagerRole(role) {
   return MANAGER_ROLES.includes(normalizeRole(role));
-}
-
-function isStaffWorkerRole(role) {
-  return normalizeRole(role) === STAFF_WORKER_ROLE;
 }
 
 function assigneeIdStrings(ticket) {
@@ -711,14 +706,8 @@ export const updateTicketStatus = async (req, res) => {
     }
     const isManager = isManagerRole(req.user.role);
     const isAssignee = isTicketAssignedToUser(ticket, req.user.id);
-    const isStaffWorker = isStaffWorkerRole(req.user.role);
     if (!isManager && !isAssignee) {
       return res.status(403).json({ message: "Access denied" });
-    }
-    if (isManager && ticketHasAssignees(ticket) && status !== "Resolved") {
-      return res.status(403).json({
-        message: "Assigned staff controls this ticket. Managers can only mark it as Resolved.",
-      });
     }
 
     if (ticket.status === status) {
@@ -739,19 +728,6 @@ export const updateTicketStatus = async (req, res) => {
 
     const previousStatus = ticket.status;
     ticket.status = status;
-    if (isAssignee && !isManager) {
-      const sid = req.user.id;
-      const raw = ticket.assignees || [];
-      const hasMe = raw.some((id) => String(id) === String(sid));
-      if (!hasMe) {
-        if (raw.length >= TICKET_MAX_ASSIGNEES) {
-          return res.status(400).json({
-            message: `At most ${TICKET_MAX_ASSIGNEES} assignees per ticket`,
-          });
-        }
-        ticket.assignees = [...raw, sid];
-      }
-    }
     ticket.statusLog.push({
       status,
       changedBy: req.user.id,
@@ -858,7 +834,7 @@ export const assignTicket = async (req, res) => {
       const addId = sanitizeText(req.body.addAssignee) || sanitizeText(req.body.assignedTo);
       const assignee = await User.findById(addId).select("role name email");
       if (!assignee || !ASSIGNEE_ROLES.includes(normalizeRole(assignee.role))) {
-        return res.status(400).json({ message: "Assigned user must be a staff member" });
+        return res.status(400).json({ message: "Assigned user must be a staff or management account" });
       }
       const ids = (ticket.assignees || []).map((x) => String(x));
       if (!ids.includes(String(assignee._id))) {

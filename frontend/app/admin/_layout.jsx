@@ -1,7 +1,6 @@
 import { router, Stack } from "expo-router";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, StatusBar, StyleSheet, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
 import AdminAppBar from "../../components/admin/AdminAppBar";
 import { COLORS } from "../../constants/colors";
 import { storage } from "../../lib/storage";
@@ -40,10 +39,9 @@ export default function AdminLayout() {
 
   return (
     <View style={styles.root}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
-      <SafeAreaView edges={["top"]} style={styles.appBarSafe}>
+      <View style={styles.appBarSafe}>
         <AdminAppBar />
-      </SafeAreaView>
+      </View>
       <View style={styles.stackWrap}>
         <Stack screenOptions={{ headerShown: false }} />
       </View>

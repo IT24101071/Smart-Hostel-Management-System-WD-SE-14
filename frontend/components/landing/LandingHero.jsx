@@ -1,19 +1,26 @@
-import { Image } from 'expo-image';
+import { useAssets } from 'expo-asset';
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { SvgUri } from 'react-native-svg';
 import { LANDING } from './landingTheme';
 
-const heroSource = require('../../assets/images/landing-hero.svg');
-
 export default function LandingHero({ onReserve }) {
+  const [assets] = useAssets([require('../../assets/images/landing-hero.svg')]);
+  const [cardWidth, setCardWidth] = useState(0);
+  const uri = assets?.[0]?.localUri ?? null;
+
   return (
     <View style={styles.shadowWrap}>
-      <View style={styles.card}>
-        <Image
-          source={heroSource}
-          style={styles.image}
-          contentFit="cover"
-          transition={200}
-        />
+      <View style={styles.card} onLayout={(e) => setCardWidth(e.nativeEvent.layout.width)}>
+        {uri && cardWidth > 0 && (
+          <SvgUri
+            uri={uri}
+            width={cardWidth}
+            height={280}
+            preserveAspectRatio="xMidYMid slice"
+            style={StyleSheet.absoluteFillObject}
+          />
+        )}
         <View style={styles.overlay}>
           <Text style={styles.title}>Experience Smart Living</Text>
           <Pressable style={styles.cta} onPress={onReserve}>
@@ -41,9 +48,6 @@ const styles = StyleSheet.create({
     height: 280,
     borderRadius: 20,
     overflow: 'hidden',
-  },
-  image: {
-    ...StyleSheet.absoluteFillObject,
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,

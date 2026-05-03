@@ -199,30 +199,22 @@ function TicketCard({
   ticket,
   onPress,
   onAssignToMe,
-  onAssignToStaff,
-  onRemoveAssignee,
-  onClearAssignees,
   onQuickStatus,
   actionBusy,
   currentUserId,
   currentUserEmail,
-  staffOptions,
-  staffLoading,
-  allowAssignmentActions = true,
-  canResolveAnyInProgress = false,
+  isManager,
 }) {
   const assignees = getTicketAssignees(ticket);
-  const assignmentLocked =
-    ticket.status === "Resolved" || ticket.status === "Closed";
   const isAssignedToMe = isTicketAssignedToUser(
     ticket,
     currentUserId,
     currentUserEmail,
   );
-  const canAssignToMe = !isAssignedToMe;
+  const canAssignToMe = !isAssignedToMe && ticket.status !== "Resolved" && ticket.status !== "Closed";
   const canResolve =
     ticket.status === "In Progress" &&
-    (isAssignedToMe || canResolveAnyInProgress);
+    (isAssignedToMe || (isManager && assignees.length === 0));
   const urgencyTheme = getUrgencyTheme(ticket.urgency);
 
   return (
@@ -312,65 +304,6 @@ function TicketCard({
           </Pressable>
         ) : null}
       </View>
-
-      {allowAssignmentActions ? (
-        <>
-          <StaffAssignDropdown
-            ticketId={ticket.id}
-            value=""
-            onChange={(staffId) => onAssignToStaff(ticket, staffId)}
-            options={staffOptions.filter(
-              (o) =>
-                !assignees.some(
-                  (a) => String(a.id || a._id) === String(o.id),
-                ),
-            )}
-            loading={staffLoading}
-            disabled={actionBusy || assignmentLocked}
-            compact
-          />
-          {assignees.map((a) => {
-            const aid = a.id || a._id;
-            return (
-              <Pressable
-                key={`rm-${ticket.id}-${aid}`}
-                style={[
-                  styles.removeAssignBtn,
-                  (actionBusy || assignmentLocked) && styles.actionDisabled,
-                ]}
-                onPress={() => onRemoveAssignee(ticket, aid)}
-                disabled={actionBusy || assignmentLocked}
-              >
-                <Ionicons
-                  name="close-circle-outline"
-                  size={14}
-                  color={COLORS.maintenance}
-                />
-                <Text style={styles.removeAssignText} numberOfLines={1}>
-                  Remove {a.name || "assignee"}
-                </Text>
-              </Pressable>
-            );
-          })}
-          {assignees.length > 0 && !assignmentLocked ? (
-            <Pressable
-              style={[
-                styles.removeAssignBtn,
-                actionBusy && styles.actionDisabled,
-              ]}
-              onPress={() => onClearAssignees(ticket)}
-              disabled={actionBusy}
-            >
-              <Ionicons
-                name="trash-outline"
-                size={14}
-                color={COLORS.maintenance}
-              />
-              <Text style={styles.removeAssignText}>Clear all assignees</Text>
-            </Pressable>
-          ) : null}
-        </>
-      ) : null}
     </Pressable>
   );
 }
@@ -427,7 +360,7 @@ export default function TicketManagementScreen({
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [tickets, setTickets] = useState([]);
-  const [activeStatus, setActiveStatus] = useState("");
+  const [activeStatus, setActiveStatus] = useState(staffOnly ? "In Progress" : "Open");
   const [activeCategory, setActiveCategory] = useState("");
   const [activeUrgency, setActiveUrgency] = useState("");
   const [searchInput, setSearchInput] = useState("");
@@ -440,11 +373,11 @@ export default function TicketManagementScreen({
   const [currentUserRole, setCurrentUserRole] = useState("");
   const [ticketScope, setTicketScope] = useState(staffOnly ? "mine" : "all");
   const [filterPickerOpen, setFilterPickerOpen] = useState(false);
-  const [draftStatus, setDraftStatus] = useState("");
+  const [draftStatus, setDraftStatus] = useState(staffOnly ? "In Progress" : "Open");
   const [draftCategory, setDraftCategory] = useState("");
   const [draftUrgency, setDraftUrgency] = useState("");
   const [quickActionTicketId, setQuickActionTicketId] = useState("");
-  const [scopeDefaultsActive, setScopeDefaultsActive] = useState(false);
+  const [scopeDefaultsActive, setScopeDefaultsActive] = useState(true);
   const [staffOptions, setStaffOptions] = useState([]);
   const [staffLoading, setStaffLoading] = useState(false);
 
@@ -761,7 +694,14 @@ export default function TicketManagementScreen({
         prev.map((t) => (t.id === updated.id ? updated : t)),
       );
       if (selectedTicket?.id === updated.id) {
-        setSelectedTicket(updated);
+        setSelectedTicket((prev) => ({
+          ...prev,
+          assignees: updated.assignees,
+          assignedTo: updated.assignedTo,
+          status: updated.status,
+          statusLog: updated.statusLog,
+          updatedAt: updated.updatedAt,
+        }));
       }
     } catch (error) {
       Alert.alert("Unable to assign", getTicketErrorMessage(error));
@@ -782,31 +722,17 @@ export default function TicketManagementScreen({
         prev.map((t) => (t.id === updated.id ? updated : t)),
       );
       if (selectedTicket?.id === updated.id) {
-        setSelectedTicket(updated);
+        setSelectedTicket((prev) => ({
+          ...prev,
+          assignees: updated.assignees,
+          assignedTo: updated.assignedTo,
+          status: updated.status,
+          statusLog: updated.statusLog,
+          updatedAt: updated.updatedAt,
+        }));
       }
     } catch (error) {
       Alert.alert("Unable to unassign", getTicketErrorMessage(error));
-    } finally {
-      setQuickActionTicketId("");
-    }
-  };
-
-  const handleClearAssignees = async (ticket) => {
-    if (!ticket?.id) return;
-    try {
-      setQuickActionTicketId(ticket.id);
-      const updated = await assignTicket(ticket.id, {
-        clearAssignees: true,
-        note: "All assignees cleared from dashboard",
-      });
-      setTickets((prev) =>
-        prev.map((t) => (t.id === updated.id ? updated : t)),
-      );
-      if (selectedTicket?.id === updated.id) {
-        setSelectedTicket(updated);
-      }
-    } catch (error) {
-      Alert.alert("Unable to clear assignees", getTicketErrorMessage(error));
     } finally {
       setQuickActionTicketId("");
     }
@@ -997,19 +923,11 @@ export default function TicketManagementScreen({
       ticket={item}
       onPress={openTicket}
       onAssignToMe={handleQuickAssignToMe}
-      onAssignToStaff={handleAssignToStaff}
-      onRemoveAssignee={handleRemoveAssignee}
-      onClearAssignees={handleClearAssignees}
       onQuickStatus={handleQuickStatus}
       actionBusy={quickActionTicketId === item.id}
       currentUserId={currentUserId}
       currentUserEmail={currentUserEmail}
-      staffOptions={staffOptions}
-      staffLoading={staffLoading}
-      allowAssignmentActions={!staffOnly}
-      canResolveAnyInProgress={
-        currentUserRole === "admin" || currentUserRole === "warden"
-      }
+      isManager={currentUserRole === "admin" || currentUserRole === "warden"}
     />
   );
 
@@ -1034,9 +952,14 @@ export default function TicketManagementScreen({
     : false;
   const canManagerResolve =
     currentUserRole === "admin" || currentUserRole === "warden";
+  const selectedAssigneeCount = selectedTicket
+    ? getTicketAssignees(selectedTicket).length
+    : 0;
+  /** Managers: resolve only if they're on the ticket or it's still unassigned (delegated work → assignees resolve). */
   const canResolveSelected =
     selectedTicket?.status === "In Progress" &&
-    (isMineSelected || canManagerResolve);
+    (isMineSelected ||
+      (canManagerResolve && selectedAssigneeCount === 0));
 
   return (
     <View style={styles.container}>
@@ -1190,80 +1113,78 @@ export default function TicketManagementScreen({
                   ) : null}
 
                   {!staffOnly ? (
-                    <>
-                      <StaffAssignDropdown
-                        ticketId={selectedTicket?.id}
-                        value=""
-                        onChange={(staffId) =>
-                          handleAssignToStaff(selectedTicket, staffId)
-                        }
-                        options={staffOptions.filter(
-                          (o) =>
-                            !getTicketAssignees(selectedTicket).some(
-                              (a) =>
-                                String(a.id || a._id) === String(o.id),
-                            ),
-                        )}
-                        loading={staffLoading}
-                        disabled={
-                          statusUpdating ||
-                          selectedTicket?.status === "Resolved" ||
-                          selectedTicket?.status === "Closed"
-                        }
-                      />
-                      {getTicketAssignees(selectedTicket).map((a) => {
-                        const aid = a.id || a._id;
-                        const locked =
-                          selectedTicket?.status === "Resolved" ||
-                          selectedTicket?.status === "Closed";
-                        return (
-                          <Pressable
-                            key={`modal-rm-${selectedTicket?.id}-${aid}`}
-                            style={[
-                              styles.removeAssignBtn,
-                              (statusUpdating || locked) &&
-                                styles.actionDisabled,
-                            ]}
-                            onPress={() =>
-                              handleRemoveAssignee(selectedTicket, aid)
-                            }
-                            disabled={statusUpdating || locked}
-                          >
-                            <Ionicons
-                              name="close-circle-outline"
-                              size={14}
-                              color={COLORS.maintenance}
-                            />
-                            <Text style={styles.removeAssignText}>
-                              Remove {a.name || "assignee"}
-                            </Text>
-                          </Pressable>
-                        );
-                      })}
-                      {getTicketAssignees(selectedTicket).length > 0 &&
-                      selectedTicket?.status !== "Resolved" &&
-                      selectedTicket?.status !== "Closed" ? (
-                        <Pressable
-                          style={[
-                            styles.removeAssignBtn,
-                            statusUpdating && styles.actionDisabled,
-                          ]}
-                          onPress={() =>
-                            handleClearAssignees(selectedTicket)
-                          }
-                          disabled={statusUpdating}
-                        >
-                          <Ionicons
-                            name="trash-outline"
-                            size={14}
-                            color={COLORS.maintenance}
-                          />
-                          <Text style={styles.removeAssignText}>
-                            Clear all assignees
-                          </Text>
-                        </Pressable>
+                    <View style={styles.assignSection}>
+                      <Text style={styles.assignSectionLabel}>
+                        Assigned Staff
+                      </Text>
+                      {getTicketAssignees(selectedTicket).length > 0 ? (
+                        <View style={styles.assignChipsRow}>
+                          {getTicketAssignees(selectedTicket).map((a) => {
+                            const aid = a.id || a._id;
+                            const locked =
+                              selectedTicket?.status === "Resolved" ||
+                              selectedTicket?.status === "Closed";
+                            return (
+                              <View
+                                key={`chip-${selectedTicket?.id}-${aid}`}
+                                style={[
+                                  styles.assignChip,
+                                  (statusUpdating || locked) &&
+                                    styles.actionDisabled,
+                                ]}
+                              >
+                                <Ionicons
+                                  name="person-outline"
+                                  size={12}
+                                  color={COLORS.primaryDark}
+                                />
+                                <Text
+                                  style={styles.assignChipName}
+                                  numberOfLines={1}
+                                >
+                                  {a.name || "Staff"}
+                                </Text>
+                                {!locked && String(aid) !== String(currentUserId) ? (
+                                  <Pressable
+                                    style={styles.assignChipRemove}
+                                    onPress={() =>
+                                      handleRemoveAssignee(selectedTicket, aid)
+                                    }
+                                    disabled={statusUpdating}
+                                    hitSlop={6}
+                                  >
+                                    <Ionicons
+                                      name="close"
+                                      size={11}
+                                      color={COLORS.primaryDark}
+                                    />
+                                  </Pressable>
+                                ) : null}
+                              </View>
+                            );
+                          })}
+                        </View>
                       ) : null}
-                    </>
+                      {selectedTicket?.status !== "Resolved" &&
+                      selectedTicket?.status !== "Closed" ? (
+                        <StaffAssignDropdown
+                          ticketId={selectedTicket?.id}
+                          value=""
+                          onChange={(staffId) =>
+                            handleAssignToStaff(selectedTicket, staffId)
+                          }
+                          options={staffOptions.filter(
+                            (o) =>
+                              !getTicketAssignees(selectedTicket).some(
+                                (a) =>
+                                  String(a.id || a._id) === String(o.id),
+                              ),
+                          )}
+                          loading={staffLoading}
+                          disabled={statusUpdating}
+                        />
+                      ) : null}
+                    </View>
                   ) : null}
                   {/* Note input + Add Note */}
                   {isMineSelected &&
@@ -2088,9 +2009,68 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.maintenance,
   },
+  assignSection: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 12,
+    backgroundColor: COLORS.white,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 12,
+  },
+  assignSectionLabel: {
+    fontFamily: "PublicSans_600SemiBold",
+    fontSize: 11,
+    color: COLORS.textMuted,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  assignChipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 10,
+  },
+  assignChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: COLORS.primaryLight,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+    borderRadius: 999,
+    paddingLeft: 9,
+    paddingRight: 6,
+    paddingVertical: 5,
+    maxWidth: 180,
+  },
+  assignChipName: {
+    fontFamily: "PublicSans_600SemiBold",
+    fontSize: 12,
+    color: COLORS.primaryDark,
+    flexShrink: 1,
+  },
+  assignChipRemove: {
+    width: 18,
+    height: 18,
+    borderRadius: 99,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.08)",
+    marginLeft: 2,
+  },
+  assignNoStaff: {
+    fontFamily: "PublicSans_400Regular",
+    fontSize: 12,
+    color: COLORS.textMuted,
+    fontStyle: "italic",
+    marginBottom: 10,
+  },
   timelineBlock: {
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
+    marginTop: 16,
     paddingTop: 14,
     marginBottom: 4,
   },

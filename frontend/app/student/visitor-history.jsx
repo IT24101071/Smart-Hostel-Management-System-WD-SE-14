@@ -10,7 +10,6 @@ import {
   Text,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS } from "../../constants/colors";
 import {
   getMyVisitorLogs,
@@ -51,7 +50,6 @@ function statusLabel(status) {
 }
 
 export default function StudentVisitorHistoryScreen() {
-  const insets = useSafeAreaInsets();
   const router = useRouter();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -156,7 +154,7 @@ export default function StudentVisitorHistoryScreen() {
 
   return (
     <View style={styles.root}>
-      <View style={[styles.header, { paddingTop: insets.top }]}>
+      <View style={styles.header}>
         <Pressable
           style={styles.headerBtn}
           onPress={handleBack}

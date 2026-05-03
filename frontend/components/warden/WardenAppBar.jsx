@@ -1,11 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { COLORS } from "../../constants/colors";
 
 export default function WardenAppBar({ title = "Warden Dashboard", subtitle = "Smart Hostel Management", onLogout }) {
   return (
-    <SafeAreaView edges={["top"]} style={styles.safeArea}>
+    <View style={styles.safeArea}>
       <View style={styles.bar}>
         <View style={styles.left}>
           <Text style={styles.title}>{title}</Text>
@@ -16,7 +15,7 @@ export default function WardenAppBar({ title = "Warden Dashboard", subtitle = "S
           <Ionicons name="log-out-outline" size={22} color={COLORS.white} />
         </Pressable>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
