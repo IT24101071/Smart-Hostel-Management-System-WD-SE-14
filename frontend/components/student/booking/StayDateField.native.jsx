@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { COLORS } from '../../../constants/colors';
 
 function formatDate(date) {
@@ -58,6 +58,8 @@ export default function StayDateField({
           display="default"
           minimumDate={minimumDate}
           onChange={onChange}
+          accentColor={COLORS.primary}
+          {...(Platform.OS === 'ios' ? { themeVariant: 'light' } : {})}
         />
       ) : null}
     </View>

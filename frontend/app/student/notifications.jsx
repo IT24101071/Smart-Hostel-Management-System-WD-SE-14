@@ -9,7 +9,6 @@ import {
   Text,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS } from "../../constants/colors";
 import {
   getMyNotifications,
@@ -18,7 +17,6 @@ import {
 } from "../../services/notification.service";
 
 export default function StudentNotificationsScreen() {
-  const insets = useSafeAreaInsets();
   const router = useRouter();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -59,7 +57,7 @@ export default function StudentNotificationsScreen() {
 
   return (
     <View style={styles.root}>
-      <View style={[styles.header, { paddingTop: insets.top }]}>
+      <View style={styles.header}>
         <Pressable
           style={styles.headerBtn}
           onPress={handleBack}

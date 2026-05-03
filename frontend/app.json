@@ -16,7 +16,8 @@
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/icon.png"
       },
-      "edgeToEdgeEnabled": true,
+      "edgeToEdgeEnabled": false,
+      "softwareKeyboardLayoutMode": "resize",
       "predictiveBackGestureEnabled": false,
       "package": "com.anonymous.frontend"
     },

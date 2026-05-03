@@ -102,7 +102,7 @@ export default function StudentRoomDetailScreen() {
 
   return (
     <View style={styles.root}>
-      <View style={[styles.header, { paddingTop: insets.top }]}>
+      <View style={styles.header}>
         <Pressable
           style={styles.headerIcon}
           onPress={handleBack}

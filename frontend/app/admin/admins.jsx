@@ -1,5 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
-import * as FileSystem from "expo-file-system";
+import {
+  cacheDirectory,
+  EncodingType,
+  writeAsStringAsync,
+} from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -309,7 +313,7 @@ export default function AdminManagementScreen() {
         <View style={styles.logContent}>
           <Text style={styles.logTitle}>{actionLabel}</Text>
           <Text style={styles.logSubtext}>
-            {actor} -> {target}
+            {`${actor} → ${target}`}
           </Text>
           <Text style={styles.logTime}>{formatDate(item.createdAt)}</Text>
         </View>
@@ -364,9 +368,9 @@ export default function AdminManagementScreen() {
         link.remove();
         URL.revokeObjectURL(url);
       } else {
-        const uri = `${FileSystem.cacheDirectory}${fileName}`;
-        await FileSystem.writeAsStringAsync(uri, csv, {
-          encoding: FileSystem.EncodingType.UTF8,
+        const uri = `${cacheDirectory}${fileName}`;
+        await writeAsStringAsync(uri, csv, {
+          encoding: EncodingType.UTF8,
         });
         if (await Sharing.isAvailableAsync()) {
           await Sharing.shareAsync(uri, {
@@ -418,9 +422,9 @@ export default function AdminManagementScreen() {
         link.remove();
         URL.revokeObjectURL(url);
       } else {
-        const uri = `${FileSystem.cacheDirectory}${fileName}`;
-        await FileSystem.writeAsStringAsync(uri, csv, {
-          encoding: FileSystem.EncodingType.UTF8,
+        const uri = `${cacheDirectory}${fileName}`;
+        await writeAsStringAsync(uri, csv, {
+          encoding: EncodingType.UTF8,
         });
         if (await Sharing.isAvailableAsync()) {
           await Sharing.shareAsync(uri, {

@@ -364,7 +364,7 @@ export default function StudentBookingScreen() {
 
   return (
     <View style={styles.safe}>
-      <View style={[styles.header, { paddingTop: insets.top }]}>
+      <View style={styles.header}>
         <Pressable
           style={styles.headerBtn}
           onPress={handleBack}
