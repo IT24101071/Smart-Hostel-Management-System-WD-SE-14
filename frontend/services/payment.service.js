@@ -40,6 +40,13 @@ export async function rejectPayment(id, reason) {
   return data;
 }
 
+export async function confirmRefund(id) {
+  const { data } = await apiClient.put(
+    `/payments/${encodeURIComponent(String(id))}/confirm-refund`,
+  );
+  return data;
+}
+
 export function getPaymentErrorMessage(error) {
   if (error instanceof AxiosError) {
     const serverMessage = error.response?.data?.message;

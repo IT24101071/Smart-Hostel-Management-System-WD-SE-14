@@ -458,3 +458,49 @@ export async function sendTicketResolvedEmailToStudent({
     htmlContent,
   });
 }
+export async function sendRefundConfirmationEmail({
+  toEmail,
+  studentName,
+  booking,
+}) {
+  const { client, senderEmail, senderName } = getBrevoClient();
+  const subject = `${APP_NAME} — refund processed`;
+
+  const amount = fmtMoney(booking?.amountPaidByBooker ?? booking?.totalDue);
+
+  const textContent = [
+    `Hi ${studentName || "Student"},`,
+    "",
+    "Your refund has been processed successfully. The amount has been reversed to your original payment method.",
+    "",
+    `Booking ID: ${booking?._id ?? "--"}`,
+    `Refund Amount: ${amount}`,
+    "",
+    "It may take 3-5 business days for the funds to appear in your account depending on your bank.",
+    "",
+    `— ${APP_NAME}`,
+  ].join("\n");
+
+  const htmlContent = `
+<!DOCTYPE html>
+<html>
+<body style="font-family: system-ui, sans-serif; line-height: 1.5; color: #111827;">
+  <p>Hi ${studentName || "Student"},</p>
+  <p>Your refund has been processed successfully. The amount has been reversed to your original payment method.</p>
+  <ul>
+    <li><strong>Booking ID:</strong> ${booking?._id ?? "--"}</li>
+    <li><strong>Refund Amount:</strong> ${amount}</li>
+  </ul>
+  <p style="color: #6B7280; font-size: 14px;">It may take 3-5 business days for the funds to appear in your account depending on your bank.</p>
+  <p style="color: #9CA3AF; font-size: 12px;">— ${APP_NAME}</p>
+</body>
+</html>`;
+
+  await client.transactionalEmails.sendTransacEmail({
+    sender: { email: senderEmail, name: senderName },
+    to: [{ email: toEmail }],
+    subject,
+    textContent,
+    htmlContent,
+  });
+}

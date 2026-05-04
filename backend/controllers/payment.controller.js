@@ -1,7 +1,7 @@
 import Booking from "../models/Booking.js";
 import User from "../models/User.js";
 import Room from "../models/Room.js";
-import { sendBookingConfirmationEmail } from "../utils/brevoEmail.js";
+import { sendBookingConfirmationEmail, sendRefundConfirmationEmail } from "../utils/brevoEmail.js";
 
 // Get all bookings with payment status for admin
 export const getAllBookingsWithPayments = async (req, res) => {
@@ -133,6 +133,55 @@ export const rejectPayment = async (req, res) => {
   }
 };
 
+// Process refund (admin action)
+export const processRefund = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const booking = await Booking.findById(id).populate("student", "name email");
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: "Booking not found",
+      });
+    }
+
+    if (booking.paymentStatus !== "refund_pending") {
+      return res.status(400).json({
+        success: false,
+        message: "Only bookings with pending refunds can be processed here",
+      });
+    }
+
+    booking.paymentStatus = "refunded";
+    await booking.save();
+
+    try {
+      if (booking.student?.email) {
+        await sendRefundConfirmationEmail({
+          toEmail: booking.student.email,
+          studentName: booking.student.name,
+          booking: booking,
+        });
+      }
+    } catch (emailError) {
+      console.error("[processRefund] Failed to send refund email:", emailError);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Refund processed successfully",
+      data: booking,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
 // Get payment statistics
 export const getPaymentStats = async (req, res) => {
   try {
@@ -145,6 +194,12 @@ export const getPaymentStats = async (req, res) => {
     });
     const failedPayments = await Booking.countDocuments({
       paymentStatus: "failed",
+    });
+    const refundPending = await Booking.countDocuments({
+      paymentStatus: "refund_pending",
+    });
+    const refundedPayments = await Booking.countDocuments({
+      paymentStatus: "refunded",
     });
 
     // Calculate total revenue from completed payments
@@ -163,6 +218,8 @@ export const getPaymentStats = async (req, res) => {
         pendingPayments,
         completedPayments,
         failedPayments,
+        refundPending,
+        refundedPayments,
         totalRevenue,
       },
     });
@@ -185,6 +242,8 @@ export const getBookingsByStatus = async (req, res) => {
       "confirmed",
       "completed",
       "failed",
+      "refund_pending",
+      "refunded",
     ];
 
     if (!validStatuses.includes(status)) {
