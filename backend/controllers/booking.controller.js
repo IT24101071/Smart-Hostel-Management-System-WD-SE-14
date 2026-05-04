@@ -439,7 +439,7 @@ export const cancelBooking = async (req, res) => {
     // Change paymentStatus to failed so it doesn't count towards revenue.
     // It will appear in the Failed tab in Admin Dashboard.
     if (booking.paymentStatus === "completed") {
-      booking.paymentStatus = "failed";
+      booking.paymentStatus = "refund_pending";
     }
     await booking.save();
 

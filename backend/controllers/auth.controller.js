@@ -231,7 +231,7 @@ export const requestRegisterOtp = async (req, res) => {
           idCardImage: idCardImageUrl || undefined,
         },
       },
-      { upsert: true, new: true, setDefaultsOnInsert: true },
+      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true },
     );
 
     await sendSignupOtpEmail(email, otp);
@@ -294,7 +294,7 @@ export const verifyRegisterOtp = async (req, res) => {
       email: session.payload?.email,
       password: session.payload?.passwordHash,
       role: "student",
-      isApproved: false,
+      isApproved: true, // Auto-approved for demo
       gender: session.payload?.gender,
       studentId: session.payload?.studentId,
       year: session.payload?.year,

@@ -28,10 +28,12 @@ import {
   getPaymentsByStatus,
   confirmPayment,
   rejectPayment,
+  confirmRefund,
 } from "../../../services/payment.service";
 
 const TABS = [
   { key: "pending", label: "Pending Verification" },
+  { key: "refund_pending", label: "Refunds" },
   { key: "all", label: "All Payments" },
   { key: "completed", label: "Completed" },
   { key: "failed", label: "Failed" },
@@ -64,6 +66,10 @@ function getStatusColor(status) {
       return "#10B981";
     case "failed":
       return "#EF4444";
+    case "refund_pending":
+      return "#8B5CF6";
+    case "refunded":
+      return "#6B7280";
     default:
       return "#6B7280";
   }
@@ -81,6 +87,10 @@ function getStatusLabel(status) {
       return "Completed";
     case "failed":
       return "Failed";
+    case "refund_pending":
+      return "Refund Pending";
+    case "refunded":
+      return "Refunded";
     default:
       return status;
   }
@@ -210,6 +220,25 @@ export default function PaymentManagement() {
     }
   };
 
+  const handleConfirmRefund = async () => {
+    if (!selectedPayment) return;
+    console.log("[ADMIN] Processing refund:", selectedPayment._id);
+
+    setActionLoading(true);
+    try {
+      const res = await confirmRefund(selectedPayment._id);
+      console.log("[ADMIN] Refund Success:", res);
+      Alert.alert("Success", "Refund processed successfully");
+      setModalVisible(false);
+      await loadAll();
+    } catch (error) {
+      console.error("[ADMIN] Refund Error:", error);
+      Alert.alert("Error", error.message || "Failed to process refund");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const openPaymentDetails = (payment) => {
     setSelectedPayment(payment);
     setModalVisible(true);
@@ -301,6 +330,12 @@ export default function PaymentManagement() {
         <Text style={styles.statLabel}>Completed</Text>
       </View>
       <View style={styles.statItem}>
+        <Text style={[styles.statValue, { color: "#8B5CF6" }]}>
+          {stats.refundPending || 0}
+        </Text>
+        <Text style={styles.statLabel}>Refunds</Text>
+      </View>
+      <View style={styles.statItem}>
         <Text style={[styles.statValue, { color: "#3B82F6" }]}>
           {formatCurrency(stats.totalRevenue)}
         </Text>
@@ -380,8 +415,7 @@ export default function PaymentManagement() {
 
             {selectedPayment && (
               <>
-                <View style={{ flex: 1 }}> 
-                  <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+                <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
                     <View style={styles.modalSection}>
                       <Text style={styles.modalSectionTitle}>Student Info</Text>
                     <Text style={styles.modalText}>
@@ -498,9 +532,21 @@ export default function PaymentManagement() {
                     </View>
                   )}
                 </ScrollView>
-              </View>
 
               <View style={styles.modalActions}>
+                  {selectedPayment.paymentStatus === "refund_pending" && (
+                    <TouchableOpacity
+                      style={[
+                        styles.actionButton,
+                        styles.confirmButton, // Reuse confirm style (green)
+                        actionLoading && styles.buttonDisabled,
+                      ]}
+                      onPress={handleConfirmRefund}
+                      disabled={actionLoading}
+                    >
+                      <Text style={styles.actionButtonText}>Confirm Refund</Text>
+                    </TouchableOpacity>
+                  )}
                   {selectedPayment.paymentStatus === "submitted" && (
                     <>
                       <TouchableOpacity
@@ -725,7 +771,6 @@ const styles = StyleSheet.create({
   },
   modalBody: {
     padding: 20,
-    flex: 1,
   },
   modalSection: {
     marginBottom: 20,

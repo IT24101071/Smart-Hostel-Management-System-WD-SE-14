@@ -6,6 +6,7 @@ import {
   rejectPayment,
   getPaymentStats,
   getBookingsByStatus,
+  processRefund,
 } from "../controllers/payment.controller.js";
 import { protect, adminOnly } from "../middleware/auth.middleware.js";
 
@@ -31,5 +32,8 @@ router.put("/:id/confirm", confirmPayment);
 
 // Reject payment
 router.put("/:id/reject", rejectPayment);
+
+// Confirm refund
+router.put("/:id/confirm-refund", processRefund);
 
 export default router;
