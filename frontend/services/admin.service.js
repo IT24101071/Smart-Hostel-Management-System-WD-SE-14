@@ -1,5 +1,8 @@
 import { AxiosError } from "axios";
+import * as FileSystem from "expo-file-system";
+import { Platform } from "react-native";
 import apiClient from "../lib/axios";
+import { storage } from "../lib/storage";
 
 function mapAdmin(item) {
   if (!item) return null;
@@ -59,19 +62,26 @@ function mapWardenUser(item) {
 }
 
 export async function createWarden(payload) {
+  if (!payload.nicPhoto?.uri) {
+    const { data } = await apiClient.post("/auth/create-warden", {
+      name: payload.name?.trim() ?? "",
+      email: payload.email?.trim() ?? "",
+      password: payload.password ?? "",
+      nicNumber: payload.nicNumber?.trim() ?? "",
+    });
+    return mapWardenUser(data?.user);
+  }
+
   const form = new FormData();
   form.append("name", payload.name?.trim() ?? "");
   form.append("email", payload.email?.trim() ?? "");
   form.append("password", payload.password ?? "");
   form.append("nicNumber", payload.nicNumber?.trim() ?? "");
-  if (payload.nicPhoto?.uri) {
-    form.append("nicPhoto", {
-      uri: payload.nicPhoto.uri,
-      type: payload.nicPhoto.type || "image/jpeg",
-      name: payload.nicPhoto.name || "nic.jpg",
-    });
-  }
-  const { data } = await apiClient.post("/auth/create-warden", form);
+  form.append(
+    "nicPhoto",
+    await normalizeUploadFile(payload.nicPhoto, "nic-photo"),
+  );
+  const data = await postMultipartWithAuth("/auth/create-warden", form);
   return mapWardenUser(data?.user);
 }
 
@@ -91,12 +101,11 @@ export async function updateWarden(id, payload) {
     if (payload.nicNumber !== undefined) {
       form.append("nicNumber", String(payload.nicNumber ?? "").trim());
     }
-    form.append("nicPhoto", {
-      uri: payload.nicPhoto.uri,
-      type: payload.nicPhoto.type || "image/jpeg",
-      name: payload.nicPhoto.name || "nic.jpg",
-    });
-    const { data } = await apiClient.patch(
+    form.append(
+      "nicPhoto",
+      await normalizeUploadFile(payload.nicPhoto, "nic-photo"),
+    );
+    const data = await patchMultipartWithAuth(
       `/auth/users/${encodeURIComponent(String(id))}`,
       form,
     );
@@ -156,4 +165,69 @@ export function getAdminErrorMessage(error) {
     if (!error.response) return "Could not reach admin services.";
   }
   return "Admin request failed.";
+}
+
+function extFromMime(mime) {
+  const m = String(mime || "").toLowerCase();
+  if (m.includes("png")) return "png";
+  if (m.includes("webp")) return "webp";
+  return "jpg";
+}
+
+async function normalizeUploadFile(file, label) {
+  const uri = String(file?.uri || "");
+  const type = String(file?.type || "image/jpeg");
+  const ext = extFromMime(type);
+  const name = String(file?.name || `${label}.${ext}`);
+
+  if (
+    Platform.OS === "android" &&
+    uri.startsWith("content://") &&
+    FileSystem.cacheDirectory
+  ) {
+    const cacheUri = `${FileSystem.cacheDirectory}${Date.now()}-${name}`;
+    await FileSystem.copyAsync({ from: uri, to: cacheUri });
+    return { uri: cacheUri, type, name };
+  }
+
+  return { uri, type, name };
+}
+
+function resolveEndpoint(path) {
+  const baseUrl = String(apiClient.defaults.baseURL || "").replace(/\/$/, "");
+  return `${baseUrl}${path}`;
+}
+
+async function postMultipartWithAuth(path, form) {
+  const token = await storage.getToken();
+  const res = await fetch(resolveEndpoint(path), {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: form,
+  });
+  const text = await res.text();
+  const data = text ? JSON.parse(text) : {};
+  if (!res.ok) {
+    const err = new Error(data?.message || `Request failed with status ${res.status}`);
+    err.response = { status: res.status, data };
+    throw err;
+  }
+  return data;
+}
+
+async function patchMultipartWithAuth(path, form) {
+  const token = await storage.getToken();
+  const res = await fetch(resolveEndpoint(path), {
+    method: "PATCH",
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: form,
+  });
+  const text = await res.text();
+  const data = text ? JSON.parse(text) : {};
+  if (!res.ok) {
+    const err = new Error(data?.message || `Request failed with status ${res.status}`);
+    err.response = { status: res.status, data };
+    throw err;
+  }
+  return data;
 }
